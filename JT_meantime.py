@@ -15,47 +15,80 @@ def count_time(dataset):
     simple_datetime = defaultdict(list)
     end = 0
     while n < dataset.shape[0]:
-        size_jt_lines = 0
         idx_docs_pairs.append([n])
         batch_start = datetime.strptime(dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S")
         end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
         following_start = datetime.strptime(
             dataset["start"][n + 1], "%d/%m/%Y %H:%M:%S"
         )
-        while  n < dataset.shape[0] and end == following_start :
+        # print(f"new JT batch,n : {n}, start : {batch_start}, following start : {following_start}, end : {end} equal to following start before while")
+        while end != following_start:
             end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
-
+            end_n = n
             n += 1
-            if n == dataset.shape[0]:
-                break
             following_start = datetime.strptime(
                 dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S"
             )
-            size_jt_lines += 1
-            # print("\t into while, end : ", end , "following_start : ", following_start, " n + 1 : ", n+1)
-        n -= 1
-        duration = end - batch_start
-        hours, minutes = duration.seconds // 3600, duration.seconds // 60 % 60
-        # print(f"duration in sc: {duration},\n{hours} hours, {minutes} minutes,\n time of batch start : {batch_start}, time of end : {end}")
-        # print(f"size_jt_lines : {size_jt_lines}\n")
-        durations_by_channel[dataset["channel"][n]].append(
-            str(hours) + ":" + str(minutes)
-        )
-        duration_lines_by_channel[dataset["channel"][n]].append(size_jt_lines)
-        simple_datetime[dataset["channel"][n]].append(duration)
+            duration = end - batch_start
+            hours, minutes = duration.seconds // 3600, duration.seconds // 60 % 60
 
-        idx_docs_pairs[idx_list].append(n)
-        # print(f"after while cycle, idx_docs_pairs : {idx_docs_pairs}, n : {n}, idx_list : {idx_list}")
-        # print(dataset.loc[idx_docs_pairs[idx_list][0]:idx_docs_pairs[idx_list][1]])
-        idx_list += 1
-        n += 1
+            durations_by_channel[dataset["channel"][end_n]].append(
+                str(hours) + ":" + str(minutes)
+            )
+            simple_datetime[dataset["channel"][end_n]].append(duration)
 
-    print(idx_docs_pairs)
-    # for i in range(len(idx_docs_pairs)):
-    #     print(f"idx_docs_pairs {i} : in 0 {idx_docs_pairs[i][0]} and 1 {idx_docs_pairs[i][1]}")
-    #     print(dataset.loc[idx_docs_pairs[i][0]:idx_docs_pairs[i][1]])
+            idx_docs_pairs[idx_list].append(end_n)
+            duration_lines_by_channel[dataset["channel"][end_n]].append(
+                (idx_docs_pairs[idx_list][1] - idx_docs_pairs[idx_list][0]) + 1
+            )
+            idx_docs_pairs.append([n])
+            idx_list += 1
+        while n < dataset.shape[0] - 2 and end == following_start:
+            end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
+            end_n = n
+            n += 1
+            following_start = datetime.strptime(
+                dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S"
+            )
 
-    return duration_lines_by_channel, durations_by_channel, simple_datetime
+        if n != dataset.shape[0] - 2:
+            duration = end - batch_start
+            hours, minutes = duration.seconds // 3600, duration.seconds // 60 % 60
+
+            durations_by_channel[dataset["channel"][end_n]].append(
+                str(hours) + ":" + str(minutes)
+            )
+            simple_datetime[dataset["channel"][end_n]].append(duration)
+
+            idx_docs_pairs[idx_list].append(end_n)
+
+            duration_lines_by_channel[dataset["channel"][end_n]].append(
+                (idx_docs_pairs[idx_list][1] - idx_docs_pairs[idx_list][0]) + 1
+            )
+            idx_list += 1
+        else:
+            n += 1
+            end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
+            duration = end - batch_start
+            hours, minutes = duration.seconds // 3600, duration.seconds // 60 % 60
+            durations_by_channel[dataset["channel"][n]].append(
+                str(hours) + ":" + str(minutes)
+            )
+            simple_datetime[dataset["channel"][n]].append(duration)
+
+            idx_docs_pairs[idx_list].append(n)
+            duration_lines_by_channel[dataset["channel"][n]].append(
+                (idx_docs_pairs[idx_list][1] - idx_docs_pairs[idx_list][0]) + 1
+            )
+            return (
+                duration_lines_by_channel,
+                durations_by_channel,
+                simple_datetime,
+                idx_docs_pairs,
+            )
+        
+        # print(f"end of a  JT batch, n : {end_n}, start : {n}, end : {end}, following start : {following_start}")
+
 
 
 def human_time(time):
@@ -106,21 +139,25 @@ def stats_and_dataframing(
 
 def main(name):
     dataset = pd.read_csv(name, quoting=csv.QUOTE_ALL)
-    duration_lines_by_channel, durations_by_channel, simple_datetime = count_time(
-        dataset
+    duration_lines_by_channel, durations_by_channel, simple_datetime, idx_docs_pairs = (
+        count_time(dataset)
     )
-    # df_line, df_time, stats = stats_and_dataframing(
-    #     duration_lines_by_channel, durations_by_channel, simple_datetime
-    # )
-    # print(df_line)
-    # print(df_time)
-    # print(stats)
-    # saving stats and times in csv
-    # df_line.to_csv(name.split("/")[0] + "/line_" + name.split("/")[1], index=False)
-    # df_time.to_csv(name.split("/")[0] + "/time_" + name.split("/")[1], index=False)
-    # stats.to_csv(name.split("/")[0] + "/stats_" + name.split("/")[1], index=False)
+    print("count_time ended")
+    df_line, df_time, stats = stats_and_dataframing(
+        duration_lines_by_channel, durations_by_channel, simple_datetime
+    )
+    print(df_line)
+    print(df_time)
+    print(stats)
+    df_docs_pairs = pd.DataFrame(idx_docs_pairs)
+    df_docs_pairs.to_csv(
+        name.split("/")[0] + "/idx_docs_pairs_" + name.split("/")[1], index=False
+    )
+    df_line.to_csv(name.split("/")[0] + "/line_" + name.split("/")[1], index=False)
+    df_time.to_csv(name.split("/")[0] + "/time_" + name.split("/")[1], index=False)
+    stats.to_csv(name.split("/")[0] + "/stats_" + name.split("/")[1], index=False)
 
 
-# main("data/medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv")
-main("data/short_1000_04072023.csv")
+main("data/medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv")
+# main("data/short_1000_04072023.csv")
 # main("data/test_corpus.csv")

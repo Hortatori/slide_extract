@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import os
 import tqdm
 import torch
-
+import time
 # KEY_WORDS = [
 #     "jeune conducteur",
 #     "refus d'obtempérer",
@@ -60,13 +60,13 @@ class sliding_windows:
 
 def encode_dataset(model, data):
     data["text"] = data.text.str.slice(0, 500)
-    embbed_texts = np.array(model.encode(data.text.tolist(), show_progress_bar=True))
-    return np.array(embbed_texts)
+    embbed_texts = model.encode(data.text.tolist(), show_progress_bar=True, convert_to_tensor=True)
+    return embbed_texts
 
 
 def encode_keywords(model, keywords):
     # keywords = [i[0:500] for i in keywords]
-    vectors = np.array(model.encode(keywords))
+    vectors = model.encode(keywords, convert_to_tensor=True)
     return vectors
 
 
@@ -76,20 +76,21 @@ def sklearn_cosine(x, y):
 
 
 def main(model_name, dataset, threshold, window_size):
+    begin_tim = time.time()
     data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
     path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1])
     model = SentenceTransformer(model_name)
     if not os.path.exists("matrix/"):
         os.mkdir("matrix/")
 
-    if os.path.exists(path + ".npy"):
-        print("embedding already computed, loading from ", path + ".npy")
-        embedded_data = np.load(path + ".npy")
+    if os.path.exists(path + ".pt"):
+        print("embedding already computed, loading from ", path + ".pt")
+        embedded_data = torch.load(path + ".pt", weights_only=True)
     else:
         print("computing embedding...")
         embedded_data = encode_dataset(model, data)
-        print("shape of embedded data ", embedded_data.shape, " saving to ", path)
-        np.save(path, embedded_data)
+        print("shape of embedded data ", embedded_data.shape, " saving to ", path, "type : ", type(embedded_data))
+        torch.save(embedded_data, path+".pt")
 
     keywords_embedded = encode_keywords(model, KEY_WORDS)
     print(f"keywords shape : {keywords_embedded.shape}")
@@ -102,19 +103,16 @@ def main(model_name, dataset, threshold, window_size):
     # print(length)
     with tqdm.tqdm(total = length) as pbar:
         for batch, indexes in sliding.iterate():
-            # similarity = cosine_similarity(batch, keywords_embedded)
             similarity = model.similarity(batch, keywords_embedded)
-            # avg_sim = np.mean(similarity)
             avg_sim = torch.mean(similarity, dim = 1)
             # print(f"shape of batch : {batch.shape}")
             # print(f"shape of keywords : {keywords_embedded.shape}")
             # print(f"shape of similarity : {similarity.shape}")
             # print(f"shape of similarity{avg_sim.shape}")
             if (avg_sim > threshold).any():
-                # print(avg_sim)
-                # print(data[indexes[0]:indexes[1]])
+                print(indexes)
                 extracted_docs = pd.concat(
-                    [extracted_docs, data.iloc[indexes[0] : indexes[1], :]],
+                    [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
                     ignore_index=True,
                 )
                 info_sim.append(avg_sim)
@@ -127,21 +125,22 @@ def main(model_name, dataset, threshold, window_size):
         # print("similarité maximum : ", max(info_sim), " similarité moyenne : ", sum(info_sim)/len(info_sim) )
         print("similarité maximum : ", max(tensor.max() for tensor in info_sim), " similarité moyenne : ", sum(torch.mean(tensor, dim = 0) for tensor in info_sim)/len(info_sim) )
 
-
+    end_tim = time.time()
+    print("temps de traitement : ", (end_tim - begin_tim)/60, " minutes")
     if not os.path.exists("extracted_docs/"):
         os.mkdir("extracted_docs/")
     extracted_docs.to_csv("extracted_docs/" + str(threshold) + "_" + dataset.replace(".csv", "").split("/")[-1] + "_extracted_docs.csv", index=False)
 
 
-main(
-    model_name = "Lajavaness/sentence-camembert-large",
-    dataset = "data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
-    threshold=0.36,
-    window_size = 8)
-
 # main(
-#     model_name="Lajavaness/sentence-camembert-large",
-#     dataset="data/short_1000_04072023.csv",
+#     model_name = "Lajavaness/sentence-camembert-large",
+#     dataset = "data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
 #     threshold=0.36,
-#     window_size=8,
-# )
+#     window_size = 8)
+
+main(
+    model_name="Lajavaness/sentence-camembert-large",
+    dataset="data/dix_mille_short.csv",
+    threshold=0.4,
+    window_size=8,
+)

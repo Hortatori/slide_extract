@@ -1,3 +1,12 @@
 matrix/*
 data/*
 extracted_docs/*
+multi_slide.py 
+# multislide : un test de multiprocessing qui n'a pas abouti (avec numpy sur cpu)
+clean_slide.py
+# clean_slide : un test de multiprocessing avec torch qui ne fonctionne pas ("computation placer already registered. Please check linkage and avoid linking the same target more than once.")
+np_version_slide.py
+# np_version_slide : marche, est correct, a du multiprocessing, a les résultats identiques à slide.py, mais dure 2sc de plus que slide.py
+# probablement parce que c'est entièrement sur cpu plutôt que sur gpu
+batch_version_slide.py
+# batch_version_slide : marche, incorrect, utilise des batches pour paralléliser. "Incorrect" dans le sens que la distance cosinus n'est pas la même que celle calculée par model.similarity()

@@ -35,7 +35,7 @@ class sliding_windows:
         while start < N:
             embedded_texts = self.embeddings[start : start + self.window_size]
             doc_indices = [start, start + self.window_size]  # Index des docs
-            yield embedded_texts, doc_indices
+            yield embedded_texts, doc_indices, start
             start += self.step
 
 
@@ -52,17 +52,7 @@ def encode_keywords(model, keywords):
     vectors = model.encode(keywords, convert_to_tensor=True)
     return vectors
 
-
-# tfiidf plus économique mais problématique pour des mots-clés
-def sklearn_cosine(x, y):
-    return cosine_similarity(x, y)
-
-
-def main(model_name, dataset, threshold, window_size):
-    begin_tim = time.time()
-    data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
-    path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1])
-    model = SentenceTransformer(model_name)
+def load_X(path, model, data, saving_path):
     if not os.path.exists("matrix/"):
         os.mkdir("matrix/")
 
@@ -81,7 +71,21 @@ def main(model_name, dataset, threshold, window_size):
             type(embedded_data),
         )
         torch.save(embedded_data, path + ".pt")
+    # add a directory to save extracted documents from the script
+    if not os.path.exists(saving_path.split("/")[0]+"/"):
+        os.mkdir(saving_path.split("/")[0]+"/")
+    # add a subdirectory to save each 10000 loop docs
+    if not os.path.exists(saving_path):
+        os.mkdir(saving_path)
+    return embedded_data
 
+def main(model_name, dataset, threshold, window_size):
+    begin_tim = time.time()
+    data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
+    path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1])
+    saving_path = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
+    model = SentenceTransformer(model_name)
+    embedded_data = load_X(path, model, data, saving_path)
     keywords_embedded = encode_keywords(model, KEY_WORDS)
     print(f"keywords shape : {keywords_embedded.shape}")
     sliding = sliding_windows(window_size, embedded_data)
@@ -90,9 +94,8 @@ def main(model_name, dataset, threshold, window_size):
     print(f"embedded data shape : {embedded_data.shape}")
     info_sim = []
     length = int(embedded_data.shape[0]) - (window_size - 1)
-    # print(length)
     with tqdm.tqdm(total=length) as pbar:
-        for batch, indexes in sliding.iterate():
+        for batch, indexes, batch_index in sliding.iterate():
             similarity = model.similarity(batch, keywords_embedded)
             avg_sim = torch.mean(similarity, dim=1)
             # print(f"shape of batch : {batch.shape}")
@@ -100,19 +103,41 @@ def main(model_name, dataset, threshold, window_size):
             # print(f"shape of similarity : {similarity.shape}")
             # print(f"shape of similarity{avg_sim.shape}")
             if (avg_sim > threshold).any():
-                print(indexes)
                 extracted_docs = pd.concat(
                     [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
                     ignore_index=True,
                 )
                 info_sim.append(avg_sim)
             extracted_docs.drop_duplicates(inplace=True)
+            # save and delete the dataframe on every 10000 iterations to avoid memory issues
+            if batch_index % 10000 == 0:
+                extracted_docs.to_csv(
+                    saving_path
+                    + str(batch_index)
+                    +"_"
+                    + str(threshold)
+                    + "_"
+                    + dataset.replace(".csv", "").split("/")[-1]
+                    + "_extracted_docs.csv",
+                    index=False,
+                )
+                extracted_docs = pd.DataFrame(columns=data.columns)
             pbar.update(1)
-
+    # save the last dataframe of the loop
+    if extracted_docs.shape[0] > 0:
+        extracted_docs.to_csv(
+            saving_path
+            + str(batch_index)
+            +"_"
+            + str(threshold)
+            + "_"
+            + dataset.replace(".csv", "").split("/")[-1]
+            + "_extracted_docs.csv",
+            index=False,
+        )
     if len(info_sim) == 0:
         print("aucune similarité superieure au threshold")
     else:
-        # print("similarité maximum : ", max(info_sim), " similarité moyenne : ", sum(info_sim)/len(info_sim) )
         print(
             "similarité maximum : ",
             max(tensor.max() for tensor in info_sim),
@@ -120,11 +145,13 @@ def main(model_name, dataset, threshold, window_size):
             sum(torch.mean(tensor, dim=0) for tensor in info_sim) / len(info_sim),
         )
 
-    end_tim = time.time()
-    print("temps de traitement : ", (end_tim - begin_tim) / 60, " minutes")
-    if not os.path.exists("extracted_docs/"):
-        os.mkdir("extracted_docs/")
-    extracted_docs.to_csv(
+    # Concat all the csv files produced by the script
+    fichiers_csv = [f for f in os.listdir(saving_path) if f.endswith(".csv")]
+    fichiers_csv.sort(key=lambda x: int(x.split('_')[0])) 
+
+    df_list = [pd.read_csv(os.path.join(saving_path, fichier)) for fichier in fichiers_csv]
+    df_final = pd.concat(df_list, ignore_index=True)
+    df_final.to_csv(
         "extracted_docs/"
         + str(threshold)
         + "_"
@@ -132,6 +159,10 @@ def main(model_name, dataset, threshold, window_size):
         + "_extracted_docs.csv",
         index=False,
     )
+    end_tim = time.time()
+    delta = end_tim - begin_tim
+    print(f"temps de traitement : {delta} secondes, soit {int(delta // 3600)} heures, {int((delta % 3600) // 60)} minutes, {int(delta % 60)} secondes")
+
 
 
 # main(

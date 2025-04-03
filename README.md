@@ -12,21 +12,13 @@ The embedding of the key words and dataset texts has to be a Sentence Transforme
 Will save the selected documents in a dedicated directory "extracted_docs", file will be named "<threshold>_<datasetfilename>_extracted_docs.csv"
 
 ### JTmeantime.py
-Computes statistics of duration and lines by news channels and save them to files.
 Produces batch of news by gathering documents lines : if the end time of the record line is equal to the start time of the following record line, we consider they belong to the same batch.
-
-Parameters
-----------
-name : str
-    The path to the dataset file.
-
-Notes
+* compute number of lines for each news "session" (JT)
+* compute duration of each news session
+* save index of the beginning and end of each session (to be used in future versions of slide.py)
+* compute statistics for each channel of news
+Save the results.
 -----
-The dataset file is a CSV file with the following columns:
-- "channel": the name of the channel
-- "start": the start date of the document
-- "end": the end date of the document
-- "text": the text of the document
 
 Will save the following files in the same directory as the
 dataset file:

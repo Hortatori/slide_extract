@@ -30,12 +30,8 @@ def count_time(dataset):
                 dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S"
             )
             duration = end - batch_start
-            hours, minutes = duration.seconds // 3600, duration.seconds // 60 % 60
-
-            durations_by_channel[dataset["channel"][end_n]].append(
-                str(hours) + ":" + str(minutes)
-            )
             simple_datetime[dataset["channel"][end_n]].append(duration)
+            durations_by_channel[dataset["channel"][end_n]].append(duration)
 
             idx_docs_pairs[idx_list].append(end_n)
             duration_lines_by_channel[dataset["channel"][end_n]].append(
@@ -53,12 +49,8 @@ def count_time(dataset):
 
         if n != dataset.shape[0] - 2:
             duration = end - batch_start
-            hours, minutes = duration.seconds // 3600, duration.seconds // 60 % 60
-
-            durations_by_channel[dataset["channel"][end_n]].append(
-                str(hours) + ":" + str(minutes)
-            )
             simple_datetime[dataset["channel"][end_n]].append(duration)
+            durations_by_channel[dataset["channel"][end_n]].append(duration)
 
             idx_docs_pairs[idx_list].append(end_n)
 
@@ -70,10 +62,7 @@ def count_time(dataset):
             n += 1
             end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
             duration = end - batch_start
-            hours, minutes = duration.seconds // 3600, duration.seconds // 60 % 60
-            durations_by_channel[dataset["channel"][n]].append(
-                str(hours) + ":" + str(minutes)
-            )
+            durations_by_channel[dataset["channel"][n]].append(duration)
             simple_datetime[dataset["channel"][n]].append(duration)
 
             idx_docs_pairs[idx_list].append(n)
@@ -89,11 +78,6 @@ def count_time(dataset):
         
         # print(f"end of a  JT batch, n : {end_n}, start : {n}, end : {end}, following start : {following_start}")
 
-
-
-def human_time(time):
-    hours, minutes = time.seconds // 3600, time.seconds // 60 % 60
-    return str(hours) + ":" + str(minutes)
 
 
 def stats_and_dataframing(
@@ -113,22 +97,22 @@ def stats_and_dataframing(
         stats["nb_JTs"].append(len(duration_lines_by_channel[key]))
         stats["nb_lines"].append(sum(duration_lines_by_channel[key]))
         dt_sum = sum(simple_datetime[key], timedelta())
-        stats["total time"].append(human_time(dt_sum))
+        stats["total time"].append(dt_sum)
         dt_avg = sum(simple_datetime[key], timedelta()) / len(simple_datetime[key])
-        stats["avg time"].append(human_time(dt_avg))
+        stats["avg time"].append(dt_avg)
         dt_min = min(simple_datetime[key])
-        stats["min_time"].append(human_time(dt_min))
+        stats["min_time"].append(dt_min)
         dt_max = max(simple_datetime[key])
-        stats["max_time"].append(human_time(dt_max))
+        stats["max_time"].append(dt_max)
 
     # Compléter les listes avec NaN pour pv les transformer en csv
     max_len = max(len(lst) for lst in duration_lines_by_channel.values())
-    for key in duration_lines_by_channel.keys():
-        duration_lines_by_channel[key] += [np.nan] * (
-            max_len - len(duration_lines_by_channel[key])
+    for channel in duration_lines_by_channel.keys():
+        duration_lines_by_channel[channel] += [np.nan] * (
+            max_len - len(duration_lines_by_channel[channel])
         )
-        durations_by_channel[key] += [np.nan] * (
-            max_len - len(durations_by_channel[key])
+        durations_by_channel[channel] += [np.nan] * (
+            max_len - len(durations_by_channel[channel])
         )
 
     stats = pd.DataFrame(stats)
@@ -146,8 +130,11 @@ def main(name):
     df_line, df_time, stats = stats_and_dataframing(
         duration_lines_by_channel, durations_by_channel, simple_datetime
     )
+    print("DF LINES\n")
     print(df_line)
+    print("DF TIME\n")
     print(df_time)
+    print("STATS\n")
     print(stats)
     df_docs_pairs = pd.DataFrame(idx_docs_pairs)
     df_docs_pairs.to_csv(
@@ -158,6 +145,6 @@ def main(name):
     stats.to_csv(name.split("/")[0] + "/stats_" + name.split("/")[1], index=False)
 
 
-main("data/medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv")
-# main("data/short_1000_04072023.csv")
+# main("data/medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv")
+main("data/short_1000_04072023.csv")
 # main("data/test_corpus.csv")

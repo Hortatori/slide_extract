@@ -7,63 +7,71 @@ import numpy as np
 
 def count_time(dataset):
     n = 0
-    # retrieve docs indexes of start and end of one JT
+    # will contain docs indexes of start and end of one JT
     idx_list = 0
     idx_docs_pairs = list()
     durations_by_channel = defaultdict(list)
     duration_lines_by_channel = defaultdict(list)
     simple_datetime = defaultdict(list)
-    end = 0
+    end_time = 0
     while n < dataset.shape[0]:
         idx_docs_pairs.append([n])
         batch_start = datetime.strptime(dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S")
-        end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
+        end_time = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
         following_start = datetime.strptime(
             dataset["start"][n + 1], "%d/%m/%Y %H:%M:%S"
         )
-        # print(f"new JT batch,n : {n}, start : {batch_start}, following start : {following_start}, end : {end} equal to following start before while")
-        while end != following_start:
-            end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
-            end_n = n
+        # tant que le JT suivant a un écart de temps avec le JT actuel 
+        # update previous_n, n, following_start, duration, all record lists
+        while end_time != following_start:
+            previous_n = n
             n += 1
+            end_time = datetime.strptime(dataset.loc[previous_n, "end"], "%d/%m/%Y %H:%M:%S")
             following_start = datetime.strptime(
                 dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S"
             )
-            duration = end - batch_start
-            simple_datetime[dataset["channel"][end_n]].append(duration)
-            durations_by_channel[dataset["channel"][end_n]].append(duration)
+            simple_datetime[dataset["channel"][previous_n]].append(end_time - batch_start)
+            durations_by_channel[dataset["channel"][previous_n]].append(end_time - batch_start)
 
-            idx_docs_pairs[idx_list].append(end_n)
-            duration_lines_by_channel[dataset["channel"][end_n]].append(
+            idx_docs_pairs[idx_list].append(previous_n)
+            duration_lines_by_channel[dataset["channel"][previous_n]].append(
                 (idx_docs_pairs[idx_list][1] - idx_docs_pairs[idx_list][0]) + 1
             )
             idx_docs_pairs.append([n])
             idx_list += 1
-        while n < dataset.shape[0] - 2 and end == following_start:
-            end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
-            end_n = n
+            batch_start = datetime.strptime(dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S")
+            end_time = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
+            following_start = datetime.strptime(
+                dataset.loc[n+1, "start"], "%d/%m/%Y %H:%M:%S"
+            )
+
+        # tant que le JT suivant suit le JT actuel (et que ce n'est pas la dernière boucle)
+        # update end_time, previous_n, n, following_start
+        while n < dataset.shape[0] - 2 and end_time == following_start:
+            end_time = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
+            previous_n = n
             n += 1
             following_start = datetime.strptime(
                 dataset.loc[n, "start"], "%d/%m/%Y %H:%M:%S"
             )
-
+        # update les temps issus de la boucle end_time == following_start si ce n'est pas la dernière ligne
         if n != dataset.shape[0] - 2:
-            duration = end - batch_start
-            simple_datetime[dataset["channel"][end_n]].append(duration)
-            durations_by_channel[dataset["channel"][end_n]].append(duration)
+ 
+            simple_datetime[dataset["channel"][previous_n]].append(end_time - batch_start)
+            durations_by_channel[dataset["channel"][previous_n]].append(end_time - batch_start)
 
-            idx_docs_pairs[idx_list].append(end_n)
+            idx_docs_pairs[idx_list].append(previous_n)
 
-            duration_lines_by_channel[dataset["channel"][end_n]].append(
+            duration_lines_by_channel[dataset["channel"][previous_n]].append(
                 (idx_docs_pairs[idx_list][1] - idx_docs_pairs[idx_list][0]) + 1
             )
             idx_list += 1
+        # update et enregistre les temps de la boucle précédente avec la dernière ligne du document
         else:
             n += 1
-            end = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
-            duration = end - batch_start
-            durations_by_channel[dataset["channel"][n]].append(duration)
-            simple_datetime[dataset["channel"][n]].append(duration)
+            end_time = datetime.strptime(dataset.loc[n, "end"], "%d/%m/%Y %H:%M:%S")
+            durations_by_channel[dataset["channel"][n]].append(end_time - batch_start)
+            simple_datetime[dataset["channel"][n]].append(end_time - batch_start)
 
             idx_docs_pairs[idx_list].append(n)
             duration_lines_by_channel[dataset["channel"][n]].append(
@@ -76,7 +84,7 @@ def count_time(dataset):
                 idx_docs_pairs,
             )
         
-        # print(f"end of a  JT batch, n : {end_n}, start : {n}, end : {end}, following start : {following_start}")
+        # print(f"end of a  JT batch, n : {previous_n}, start : {n}, end_time : {end}, following start : {following_start}")
 
 
 
@@ -92,6 +100,7 @@ def stats_and_dataframing(
         "min_time": [],
         "max_time": [],
     }
+    # Calculer des statistiques
     for key in duration_lines_by_channel.keys():
         stats["channel"].append(key)
         stats["nb_JTs"].append(len(duration_lines_by_channel[key]))
@@ -137,6 +146,7 @@ def main(name):
     print("STATS\n")
     print(stats)
     df_docs_pairs = pd.DataFrame(idx_docs_pairs)
+    print(df_docs_pairs)
     df_docs_pairs.to_csv(
         name.split("/")[0] + "/idx_docs_pairs_" + name.split("/")[1], index=False
     )
@@ -145,6 +155,7 @@ def main(name):
     stats.to_csv(name.split("/")[0] + "/stats_" + name.split("/")[1], index=False)
 
 
-# main("data/medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv")
-main("data/short_1000_04072023.csv")
+# main("data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv")
+# main("data/short_1000_04072023.csv")
 # main("data/test_corpus.csv")
+main("data/dix_mille_short.csv")

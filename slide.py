@@ -86,6 +86,8 @@ def main(model_name, dataset, threshold, window_size):
     saving_path = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
     model = SentenceTransformer(model_name)
     embedded_data = load_X(path, model, data, saving_path)
+    cuda0 = torch.device('cuda:0')
+    embedded_data = embedded_data.to(cuda0)
     keywords_embedded = encode_keywords(model, KEY_WORDS)
     print(f"keywords shape : {keywords_embedded.shape}")
     sliding = sliding_windows(window_size, embedded_data)
@@ -123,7 +125,7 @@ def main(model_name, dataset, threshold, window_size):
                 )
                 extracted_docs = pd.DataFrame(columns=data.columns)
             pbar.update(1)
-    # save the last dataframe of the loop
+    # save the last dataframe of the loop if it exists
     if extracted_docs.shape[0] > 0:
         extracted_docs.to_csv(
             saving_path
@@ -173,7 +175,7 @@ def main(model_name, dataset, threshold, window_size):
 
 main(
     model_name="Lajavaness/sentence-camembert-large",
-    dataset="data/dix_mille_short.csv",
+    dataset="data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
     threshold=0.4,
     window_size=8,
 )

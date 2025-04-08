@@ -22,7 +22,7 @@ Save the results.
 
 Will save the following files in the same directory as the
 dataset file:
-- "idx_docs_pairs_<name>": the index of documents pairs
+- "idx_docs_pairs_<name>": indexes pairs of beginning and ending of each news bulletin
 - "line_<name>": the number of lines by channel
 - "time_<name>": the number of seconds by channel
 - "stats_<name>": the statistics (nb_JTs, nb_lines, total time, avg time,

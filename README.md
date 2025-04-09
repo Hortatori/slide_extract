@@ -1,3 +1,5 @@
+These scripts extract texts from TV news bulletin transcriptions, selecting those that are sufficiently similar to a reference text describing a specific event.
+(The event(s) here are the death of Nahel Mazrouk and the following riots).
 ### slide.py
 Slice embeddings with a sliding windows and compute the cosine similarity between a windows & representatives documents (also embedded).
 Retrieve the documents of a windows if one of the documents mean similarity is above a threshold t.

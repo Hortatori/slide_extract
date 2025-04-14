@@ -7,7 +7,7 @@ import os
 import tqdm
 import torch
 import time
-
+import argparse
 """
 Parameters
 * The SentenceBert model for representing text
@@ -32,6 +32,32 @@ KEY_WORDS = [
     "Au final, ces violences urbaines ont mis en lumière un problème plus profond : la fracture entre une partie de la population et les institutions, notamment la police. Tant que ces tensions ne seront pas prises en compte avec des réformes concrètes, il y a fort à parier que ce genre d’explosion sociale se reproduira.",
 ]
 
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument(
+    "-model_name",
+    type=str,
+    default="Lajavaness/sentence-camembert-large",
+    help="Sentence Transformer model name, default to Lajavaness/sentence-camembert-large"   
+)
+parser.add_argument(
+    "-dataset",
+    type=str,
+    default="data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
+    help="path to dataset",
+    required=True
+)
+parser.add_argument(
+    "-threshold",
+    type=float,
+    default=0.4,
+    help="threshold"
+)
+parser.add_argument(
+    "-window_size",
+    type=int,
+    default=8,
+    help="size of the sliding window"
+)
 
 class sliding_windows:
     def __init__(self, window_size, embeddings, step=1):
@@ -182,10 +208,10 @@ def main(model_name, dataset, threshold, window_size):
 #     dataset = "data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
 #     threshold=0.36,
 #     window_size = 8)
-
+args = parser.parse_args()
 main(
-    model_name="Lajavaness/sentence-camembert-large",
-    dataset="data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
-    threshold=0.4,
-    window_size=8,
+    model_name= args.model_name,
+    dataset= args.dataset,
+    threshold= args.threshold,
+    window_size= args.window_size
 )

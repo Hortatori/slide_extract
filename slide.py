@@ -88,7 +88,7 @@ def encode_keywords(model, keywords):
     vectors = model.encode(keywords, convert_to_tensor=True)
     return vectors
 
-def load_X(path, model, data, saving_path):
+def load_X(path, model, data, saving_path_subsets):
     if not os.path.exists("matrix/"):
         os.mkdir("matrix/")
 
@@ -108,20 +108,21 @@ def load_X(path, model, data, saving_path):
         )
         torch.save(embedded_data, path + ".pt")
     # add a directory to save extracted documents from the script
-    if not os.path.exists(saving_path.split("/")[0]+"/"):
-        os.mkdir(saving_path.split("/")[0]+"/")
+    if not os.path.exists(saving_path_subsets.split("/")[0]+"/"):
+        os.mkdir(saving_path_subsets.split("/")[0]+"/")
     # add a subdirectory to save each 10000 loop docs
-    if not os.path.exists(saving_path):
-        os.mkdir(saving_path)
+    if not os.path.exists(saving_path_subsets):
+        os.mkdir(saving_path_subsets)
     return embedded_data
 
 def main(model_name, dataset, threshold, window_size):
     begin_tim = time.time()
     data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
-    path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1])
-    saving_path = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
+    path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1]+"_"+model_name.replace("/", "_"))
+    print(path)
+    saving_path_subsets = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
     model = SentenceTransformer(model_name)
-    embedded_data = load_X(path, model, data, saving_path)
+    embedded_data = load_X(path, model, data, saving_path_subsets)
     cuda0 = torch.device('cuda:0')
     embedded_data = embedded_data.to(cuda0)
     keywords_embedded = encode_keywords(model, KEY_WORDS)
@@ -150,7 +151,7 @@ def main(model_name, dataset, threshold, window_size):
             # save and delete the dataframe on every 10000 iterations to avoid memory issues
             if batch_index % 10000 == 0:
                 extracted_docs.to_csv(
-                    saving_path
+                    saving_path_subsets
                     + str(batch_index)
                     +"_"
                     + str(threshold)
@@ -164,7 +165,7 @@ def main(model_name, dataset, threshold, window_size):
     # save the last dataframe of the loop if it exists
     if extracted_docs.shape[0] > 0:
         extracted_docs.to_csv(
-            saving_path
+            saving_path_subsets
             + str(batch_index)
             +"_"
             + str(threshold)
@@ -184,10 +185,10 @@ def main(model_name, dataset, threshold, window_size):
         )
 
     # Concat all the csv files produced by the script
-    fichiers_csv = [f for f in os.listdir(saving_path) if f.endswith(".csv")]
+    fichiers_csv = [f for f in os.listdir(saving_path_subsets) if f.endswith(".csv")]
     fichiers_csv.sort(key=lambda x: int(x.split('_')[0])) 
 
-    df_list = [pd.read_csv(os.path.join(saving_path, fichier)) for fichier in fichiers_csv]
+    df_list = [pd.read_csv(os.path.join(saving_path_subsets, fichier)) for fichier in fichiers_csv]
     df_final = pd.concat(df_list, ignore_index=True)
     df_final.to_csv(
         "extracted_docs/"

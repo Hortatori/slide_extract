@@ -1,13 +1,12 @@
-import numpy as np
 import pandas as pd
 import csv
 from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 import os
 import tqdm
 import torch
 import time
 import argparse
+import shutil
 """
 Parameters
 * The SentenceBert model for representing text
@@ -31,6 +30,9 @@ KEY_WORDS = [
     "Sur les réseaux sociaux, les images des affrontements ont tourné en boucle, et les débats ont été très polarisés. D’un côté, certains dénonçaient l’attitude de la police et rappelaient que ces émeutes étaient un cri de désespoir de jeunes qui ne se sentent pas écoutés. De l’autre, certains insistaient sur les dégâts causés et demandaient un retour à l’ordre rapide, dénonçant des actes de casseurs sans lien direct avec la mort de Nahel.",
     "Au final, ces violences urbaines ont mis en lumière un problème plus profond : la fracture entre une partie de la population et les institutions, notamment la police. Tant que ces tensions ne seront pas prises en compte avec des réformes concrètes, il y a fort à parier que ce genre d’explosion sociale se reproduira.",
 ]
+# working combos for now : 
+# -model_name Alibaba-NLP/gte-multilingual-base -threshold 0.63
+# -model_name Lajavaness/sentence-camembert-large -threshold 0.4
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument(
@@ -76,7 +78,12 @@ class sliding_windows:
 
 
 def encode_dataset(model, data):
-    data["text"] = data.text.str.slice(0, 500)
+    if model.get_max_seq_length() :
+        length = model.get_max_seq_length() -4 
+        print(f"Max input variable found for model : {length}")
+    else  :
+        print("No Max input variable found for model, keep default to 512")
+    data["text"] = data.text.str.slice(0, length) # not tokens, but closest
     embbed_texts = model.encode(
         data.text.tolist(), show_progress_bar=True, convert_to_tensor=True
     )
@@ -121,7 +128,9 @@ def main(model_name, dataset, threshold, window_size):
     path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1]+"_"+model_name.replace("/", "_"))
     print(path)
     saving_path_subsets = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
-    model = SentenceTransformer(model_name)
+    # model = SentenceTransformer(model_name)
+    # AliBaba model need a trust_remote_code=True. security issue if they change the config file (but huggingface should verify it)
+    model = SentenceTransformer(model_name, trust_remote_code=True)
     embedded_data = load_X(path, model, data, saving_path_subsets)
     cuda0 = torch.device('cuda:0')
     embedded_data = embedded_data.to(cuda0)
@@ -190,14 +199,19 @@ def main(model_name, dataset, threshold, window_size):
 
     df_list = [pd.read_csv(os.path.join(saving_path_subsets, fichier)) for fichier in fichiers_csv]
     df_final = pd.concat(df_list, ignore_index=True)
-    df_final.to_csv(
-        "extracted_docs/"
-        + str(threshold)
-        + "_"
-        + dataset.replace(".csv", "").split("/")[-1]
-        + "_extracted_docs.csv",
-        index=False,
-    )
+    if df_final.shape[0] != 0:
+        df_final.to_csv(
+            "extracted_docs/"
+            + model_name.replace("/", "_")
+            + "_"
+            + str(threshold)
+            + "_"
+            + dataset.replace(".csv", "").split("/")[-1]
+            + "_extracted_docs.csv",
+            index=False,
+        )
+    # delete subset directory after concat alls subset files
+    shutil.rmtree(saving_path_subsets)
     end_tim = time.time()
     delta = end_tim - begin_tim
     print(f"temps de traitement : {delta} secondes, soit {int(delta // 3600)} heures, {int((delta % 3600) // 60)} minutes, {int(delta % 60)} secondes")

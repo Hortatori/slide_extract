@@ -1,11 +1,20 @@
 These scripts extract texts from TV news bulletin transcriptions, selecting those that are sufficiently similar to a reference text describing a specific event.
 (The event(s) here are the death of Nahel Mazrouk and the following riots).
 ### slide.py
+For running slide.py with minimal customization :
+python3 slide.py -dataset <data/dataset_filnename.csv>
+you can custom your run with the following parameters :
+python3 slide.py -dataset <data/dataset_filename.csv> -model <model name on huggingface> -windows <8> -threshold <0.4>
+* name of your INA JT dataset
+* model parameter : the embedding of reference texts and dataset texts has to be a Sentence Transformer architecture for now.
+* windows parameter is the number of documents (equivalent of batches of lines here) which are taken into account when comparing with reference text
+* threshold parameter : the minimal cosine similarity for extracting a batch of lines
+
+
 * Slice embeddings with a sliding windows and compute the cosine similarity between a windows & representatives documents (also embedded).
 * Retrieve the documents of a windows if one of the documents mean similarity is above a threshold t.
 Save the result in a csv file.
 
-The embedding of the key words and dataset texts has to be a Sentence Transformer architecture for now.
 Will save the selected documents in a dedicated directory "extracted_docs", file will be named "<threshold>_<datasetfilename>_extracted_docs.csv"
 
 ### JTmeantime.py

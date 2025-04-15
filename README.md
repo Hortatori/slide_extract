@@ -2,9 +2,13 @@ These scripts extract texts from TV news bulletin transcriptions, selecting thos
 (The event(s) here are the death of Nahel Mazrouk and the following riots).
 ### slide.py
 For running slide.py with minimal customization :
+
 python3 slide.py -dataset <data/dataset_filnename.csv>
+
 you can custom your run with the following parameters :
+
 python3 slide.py -dataset <data/dataset_filename.csv> -model <model name on huggingface> -windows <8> -threshold <0.4>
+
 * name of your INA JT dataset
 * model parameter : the embedding of reference texts and dataset texts has to be a Sentence Transformer architecture for now.
 * windows parameter is the number of documents (equivalent of batches of lines here) which are taken into account when comparing with reference text

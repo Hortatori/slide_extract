@@ -143,6 +143,8 @@ def main(model_name, dataset, threshold, window_size):
     embedded_data = embedded_data.to(cuda0)
     keywords_embedded = encode_keywords(model, KEY_WORDS)
     print(f"keywords shape : {keywords_embedded.shape}")
+    # creating a spare index to keep when extracting documents
+    data = data.reset_index()
 
     extracted_docs = pd.DataFrame(columns=data.columns)
     print(f"embedded data shape : {embedded_data.shape}")

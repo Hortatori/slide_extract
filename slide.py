@@ -31,50 +31,41 @@ KEY_WORDS = [
     "Au final, ces violences urbaines ont mis en lumière un problème plus profond : la fracture entre une partie de la population et les institutions, notamment la police. Tant que ces tensions ne seront pas prises en compte avec des réformes concrètes, il y a fort à parier que ce genre d’explosion sociale se reproduira.",
 ]
 # working combos for now : 
-# -model_name Alibaba-NLP/gte-multilingual-base -threshold 0.63
+# -model_name Alibaba-NLP/gte-multilingual-base -threshold 0.63 
+# (only for a shorter dataset, AliBaba is too heavy as an embedding)
 # -model_name Lajavaness/sentence-camembert-large -threshold 0.4
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument(
-    "-model_name",
+    "--model_name",
     type=str,
     default="Lajavaness/sentence-camembert-large",
     help="Sentence Transformer model name, default to Lajavaness/sentence-camembert-large"   
 )
 parser.add_argument(
-    "-dataset",
+    "--dataset",
     type=str,
     default="data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
     help="path to dataset",
     required=True
 )
 parser.add_argument(
-    "-threshold",
+    "--threshold",
     type=float,
     default=0.4,
     help="threshold"
 )
 parser.add_argument(
-    "-window_size",
+    "--window_size",
     type=int,
     default=8,
     help="size of the sliding window"
 )
 
-class sliding_windows:
-    def __init__(self, window_size, embeddings, step=1):
-        self.window_size = window_size
-        self.embeddings = embeddings
-        self.step = step
-
-    def iterate(self):
-        start = 0
-        N = self.embeddings.shape[0] - self.window_size + 1
-        while start < N:
-            embedded_texts = self.embeddings[start : start + self.window_size]
-            doc_indices = [start, start + self.window_size]  # Index des docs
-            yield embedded_texts, doc_indices, start
-            start += self.step
+# ouvrir idx docs
+# pour chaque paire d'index,selectionner le batch d'embedding correspondant
+# puis faire tourner les fenêtres sur ce morceau
+# au lieu de sauvegrader tous les 10000, sauvegarder à chaque fin de morceau
 
 
 def encode_dataset(model, data):
@@ -117,48 +108,65 @@ def load_X(path, model, data, saving_path_subsets):
     # add a directory to save extracted documents from the script
     if not os.path.exists(saving_path_subsets.split("/")[0]+"/"):
         os.mkdir(saving_path_subsets.split("/")[0]+"/")
-    # add a subdirectory to save each 10000 loop docs
+    # add a subdirectory to save each loop docs
     if not os.path.exists(saving_path_subsets):
         os.mkdir(saving_path_subsets)
     return embedded_data
+
+class windows_sliding():
+    def __init__(self, start_batch, end_batch, window_size, embeddings, step=1):
+        self.window_size = window_size
+        self.embeddings = embeddings
+        self.step = step
+        self.start_batch = start_batch
+        self.end_batch = end_batch
+
+    def iterate(self):
+        start = self.start_batch
+        N = self.end_batch - self.window_size + 1
+        while start < N:
+            embedded_texts = self.embeddings[start : start + self.window_size]
+            doc_indices = [start, start + self.window_size]  # Index des docs
+            yield embedded_texts, doc_indices, start
+            start += self.step
 
 def main(model_name, dataset, threshold, window_size):
     begin_tim = time.time()
     data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
     path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1]+"_"+model_name.replace("/", "_"))
-    print(path)
+    df_idx_paires = pd.read_csv(dataset.split("/")[0]+"/idx_docs_pairs_"+dataset.split("/")[1], quoting=csv.QUOTE_ALL)
     saving_path_subsets = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
-    # model = SentenceTransformer(model_name)
-    # AliBaba model need a trust_remote_code=True. security issue if they change the config file (but huggingface should verify it)
-    model = SentenceTransformer(model_name, trust_remote_code=True)
+    # AliBaba model need a SentenceTransformer(model_name, trust_remote_code=True) security issue if they change the config file (but huggingface should verify it)
+    model = SentenceTransformer(model_name)
     embedded_data = load_X(path, model, data, saving_path_subsets)
     cuda0 = torch.device('cuda:0')
     embedded_data = embedded_data.to(cuda0)
     keywords_embedded = encode_keywords(model, KEY_WORDS)
     print(f"keywords shape : {keywords_embedded.shape}")
-    sliding = sliding_windows(window_size, embedded_data)
 
     extracted_docs = pd.DataFrame(columns=data.columns)
     print(f"embedded data shape : {embedded_data.shape}")
     info_sim = []
-    length = int(embedded_data.shape[0]) - (window_size - 1)
-    with tqdm.tqdm(total=length) as pbar:
-        for batch, indexes, batch_index in sliding.iterate():
-            similarity = model.similarity(batch, keywords_embedded)
-            avg_sim = torch.mean(similarity, dim=1)
-            # print(f"shape of batch : {batch.shape}")
-            # print(f"shape of keywords : {keywords_embedded.shape}")
-            # print(f"shape of similarity : {similarity.shape}")
-            # print(f"shape of similarity{avg_sim.shape}")
-            if (avg_sim > threshold).any():
-                extracted_docs = pd.concat(
-                    [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
-                    ignore_index=True,
-                )
-                info_sim.append(avg_sim)
-            extracted_docs.drop_duplicates(inplace=True)
-            # save and delete the dataframe on every 10000 iterations to avoid memory issues
-            if batch_index % 10000 == 0:
+   
+    for row in df_idx_paires.itertuples():
+        print("row of indexes : ", row)
+        w_slide = windows_sliding(row[1], row[2], window_size, embedded_data)
+        length = int(row[2]- (window_size-1)) - (int(row[1]))
+        with tqdm.tqdm(total=length) as pbar:
+            for batch, indexes, batch_index in w_slide.iterate():
+                similarity = model.similarity(batch, keywords_embedded)
+                avg_sim = torch.mean(similarity, dim=1)
+                if (avg_sim > threshold).any():
+                    extracted_docs = pd.concat(
+                        [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
+                        ignore_index=True,
+                    )
+                    info_sim.append(avg_sim)
+                extracted_docs.drop_duplicates(inplace=True)
+                pbar.update(1)
+
+            # save and delete the dataframe at end of batch to avoid memory issues
+            if len(extracted_docs.index) > 0 :
                 extracted_docs.to_csv(
                     saving_path_subsets
                     + str(batch_index)
@@ -170,19 +178,7 @@ def main(model_name, dataset, threshold, window_size):
                     index=False,
                 )
                 extracted_docs = pd.DataFrame(columns=data.columns)
-            pbar.update(1)
-    # save the last dataframe of the loop if it exists
-    if extracted_docs.shape[0] > 0:
-        extracted_docs.to_csv(
-            saving_path_subsets
-            + str(batch_index)
-            +"_"
-            + str(threshold)
-            + "_"
-            + dataset.replace(".csv", "").split("/")[-1]
-            + "_extracted_docs.csv",
-            index=False,
-        )
+
     if len(info_sim) == 0:
         print("aucune similarité superieure au threshold")
     else:
@@ -192,14 +188,12 @@ def main(model_name, dataset, threshold, window_size):
             " similarité moyenne : ",
             sum(torch.mean(tensor, dim=0) for tensor in info_sim) / len(info_sim),
         )
+        # Concat all the csv files produced by the script in the subset directory
+        fichiers_csv = [f for f in os.listdir(saving_path_subsets) if f.endswith(".csv")]
+        fichiers_csv.sort(key=lambda x: int(x.split('_')[0])) 
 
-    # Concat all the csv files produced by the script
-    fichiers_csv = [f for f in os.listdir(saving_path_subsets) if f.endswith(".csv")]
-    fichiers_csv.sort(key=lambda x: int(x.split('_')[0])) 
-
-    df_list = [pd.read_csv(os.path.join(saving_path_subsets, fichier)) for fichier in fichiers_csv]
-    df_final = pd.concat(df_list, ignore_index=True)
-    if df_final.shape[0] != 0:
+        df_list = [pd.read_csv(os.path.join(saving_path_subsets, fichier)) for fichier in fichiers_csv]
+        df_final = pd.concat([df for df in df_list if len(df.index) > 0], ignore_index=True)
         df_final.to_csv(
             "extracted_docs/"
             + model_name.replace("/", "_")
@@ -217,13 +211,10 @@ def main(model_name, dataset, threshold, window_size):
     print(f"temps de traitement : {delta} secondes, soit {int(delta // 3600)} heures, {int((delta % 3600) // 60)} minutes, {int(delta % 60)} secondes")
 
 
-
-# main(
-#     model_name = "Lajavaness/sentence-camembert-large",
-#     dataset = "data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
-#     threshold=0.36,
-#     window_size = 8)
 args = parser.parse_args()
+#TODO :
+# a slicing with time 
+# a call JT_ids.py main(dataset)
 main(
     model_name= args.model_name,
     dataset= args.dataset,

@@ -13,7 +13,7 @@ python3 slide.py -dataset <data/dataset_filename.csv> -model <model name on hugg
 * model parameter : the embedding of reference texts and dataset texts has to be a Sentence Transformer architecture for now.
 * windows parameter is the number of documents (equivalent of batches of lines here) which are taken into account when comparing with reference text
 * threshold parameter : the minimal cosine similarity for extracting a batch of lines
-
+The higher the threshold, the closer the selected texts will be to the reference text.
 
 * Slice embeddings with a sliding windows and compute the cosine similarity between a windows & representatives documents (also embedded).
 * Retrieve the documents of a windows if one of the documents mean similarity is above a threshold t.
@@ -21,7 +21,7 @@ Save the result in a csv file.
 
 Will save the selected documents in a dedicated directory "extracted_docs", file will be named "<threshold>_<datasetfilename>_extracted_docs.csv"
 
-### JTmeantime.py
+### JT_ids.py
 Produces batch of news by gathering documents lines : if the end time of the record line is equal to the start time of the following record line, we consider they belong to the same batch.
 * compute number of lines for each news "session" (JT)
 * compute duration of each news session

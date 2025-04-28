@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 import numpy as np
 import argparse
+import os
+import tqdm
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument(
@@ -179,6 +181,7 @@ def stats_and_dataframing(
 
 def main(name):
     dataset = pd.read_csv(name, quoting=csv.QUOTE_ALL)
+    print("indexing by JTs ...")
     duration_lines_by_channel, durations_by_channel, simple_datetime, idx_docs_pairs = (
         count_time(dataset)
     )
@@ -194,9 +197,32 @@ def main(name):
     print(stats)
     df_docs_pairs = pd.DataFrame(idx_docs_pairs)
     print(df_docs_pairs)
-    df_docs_pairs.to_csv(
-        name.split("/")[0] + "/idx_docs_pairs_" + name.split("/")[1], index=False
-    )
+
+    # à utiliser dans slide.py : if not os.path.exists(name.split("/")[0] + "/" + name.split("/")[1] + "_reordered"): pour appeller JTtime si le reorder n'existe pas encore
+    reorder_pairs = {"start_id" : [],"end_id" : [],"time":[]}
+    if not os.path.exists(name.split("/")[0] + "/" + name.split("/")[1] + "_reordered"):
+        for row in tqdm.tqdm(df_docs_pairs.itertuples(), total=len(df_docs_pairs)) : 
+            # print(row[1], row[2])
+            reorder_pairs["start_id"].append(row[1])
+            reorder_pairs["end_id"].append(row[2])
+            reorder_pairs["time"].append(dataset.at[row[1],"start"])
+    df_docs_pairs = pd.DataFrame(reorder_pairs)
+    df_docs_pairs = df_docs_pairs.sort_values(by="time")
+    # print(df_docs_pairs)
+    # reorder INA dataset by time
+    reorder_dataset = pd.DataFrame(columns=dataset.columns)
+    for row in tqdm.tqdm(df_docs_pairs.itertuples(), total=len(df_docs_pairs)) : 
+        # print(row[1], row[2])
+        slice = dataset.loc[row[1]:row[2]]
+        reorder_dataset = pd.concat([reorder_dataset, slice])
+    # print(reorder_dataset)
+    if os.path.exists("data/reordered/"):
+        reorder_dataset.to_csv("data/reordered/" + name.split("/")[1], index=False)
+    else :    
+        os.mkdir("data/reordered/")
+        reorder_dataset.to_csv("data/reordered/" + name.split("/")[1], index=False)
+
+    df_docs_pairs.to_csv(name.split("/")[0] + "/idx_docs_pairs_" + name.split("/")[1], index=False)
     df_line.to_csv(name.split("/")[0] + "/line_" + name.split("/")[1], index=False)
     df_time.to_csv(name.split("/")[0] + "/time_" + name.split("/")[1], index=False)
     stats.to_csv(name.split("/")[0] + "/stats_" + name.split("/")[1], index=False)

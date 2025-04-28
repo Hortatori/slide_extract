@@ -61,6 +61,13 @@ parser.add_argument(
     default=8,
     help="size of the sliding window"
 )
+parser.add_argument(
+    "--sliding_type",
+    type=str,
+    choices=["JT", "time"],
+    default="JT",
+    help="JT = sliding windows take into account the JT divisions | time = sliding windows does not take into account the JT divisions"
+)
 
 # ouvrir idx docs
 # pour chaque paire d'index,selectionner le batch d'embedding correspondant
@@ -113,7 +120,21 @@ def load_X(path, model, data, saving_path_subsets):
         os.mkdir(saving_path_subsets)
     return embedded_data
 
-class windows_sliding():
+class time_sliding():
+    def __init__(self, window_size, embeddings, step=1):
+        self.window_size = window_size
+        self.embeddings = embeddings
+        self.step = step
+
+    def iterate(self):
+        start = 0
+        N = self.embeddings.shape[0] - self.window_size + 1
+        while start < N:
+            embedded_texts = self.embeddings[start : start + self.window_size]
+            doc_indices = [start, start + self.window_size]  # Index des docs
+            yield embedded_texts, doc_indices, start
+            start += self.step
+class JT_sliding():
     def __init__(self, start_batch, end_batch, window_size, embeddings, step=1):
         self.window_size = window_size
         self.embeddings = embeddings
@@ -130,7 +151,7 @@ class windows_sliding():
             yield embedded_texts, doc_indices, start
             start += self.step
 
-def main(model_name, dataset, threshold, window_size):
+def main(model_name, dataset, threshold, window_size, sliding_type):
     begin_tim = time.time()
     data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
     path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1]+"_"+model_name.replace("/", "_"))
@@ -149,13 +170,13 @@ def main(model_name, dataset, threshold, window_size):
     extracted_docs = pd.DataFrame(columns=data.columns)
     print(f"embedded data shape : {embedded_data.shape}")
     info_sim = []
-   
-    for row in df_idx_paires.itertuples():
-        print("row of indexes : ", row)
-        w_slide = windows_sliding(row[1], row[2], window_size, embedded_data)
-        length = int(row[2]- (window_size-1)) - (int(row[1]))
+    print(f"sliding_type {sliding_type}")
+    # sliding windows across the entire dataset without distinguishing between JTs
+    if sliding_type == "time":
+        sliding = time_sliding(window_size, embedded_data)
+        length = int(embedded_data.shape[0]) - (window_size - 1)
         with tqdm.tqdm(total=length) as pbar:
-            for batch, indexes, batch_index in w_slide.iterate():
+            for batch, indexes, batch_index in sliding.iterate():
                 similarity = model.similarity(batch, keywords_embedded)
                 avg_sim = torch.mean(similarity, dim=1)
                 if (avg_sim > threshold).any():
@@ -165,10 +186,22 @@ def main(model_name, dataset, threshold, window_size):
                     )
                     info_sim.append(avg_sim)
                 extracted_docs.drop_duplicates(inplace=True)
+                # save and delete the dataframe on every 10000 iterations to avoid memory issues
+                if batch_index % 10000 == 0:
+                    extracted_docs.to_csv(
+                        saving_path_subsets
+                        + str(batch_index)
+                        +"_"
+                        + str(threshold)
+                        + "_"
+                        + dataset.replace(".csv", "").split("/")[-1]
+                        + "_extracted_docs.csv",
+                        index=False,
+                    )
+                    extracted_docs = pd.DataFrame(columns=data.columns)
                 pbar.update(1)
-
-            # save and delete the dataframe at end of batch to avoid memory issues
-            if len(extracted_docs.index) > 0 :
+            # save the last dataframe of the loop if it exists
+            if extracted_docs.shape[0] > 0:
                 extracted_docs.to_csv(
                     saving_path_subsets
                     + str(batch_index)
@@ -179,7 +212,38 @@ def main(model_name, dataset, threshold, window_size):
                     + "_extracted_docs.csv",
                     index=False,
                 )
-                extracted_docs = pd.DataFrame(columns=data.columns)
+    # sliding windows on each JT at a time
+    else :
+        for row in df_idx_paires.itertuples():
+            print("row of indexes : ", row)
+            w_slide = JT_sliding(row[1], row[2], window_size, embedded_data)
+            length = int(row[2]- (window_size-1)) - (int(row[1]))
+            with tqdm.tqdm(total=length) as pbar:
+                for batch, indexes, batch_index in w_slide.iterate():
+                    similarity = model.similarity(batch, keywords_embedded)
+                    avg_sim = torch.mean(similarity, dim=1)
+                    if (avg_sim > threshold).any():
+                        extracted_docs = pd.concat(
+                            [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
+                            ignore_index=True,
+                        )
+                        info_sim.append(avg_sim)
+                    extracted_docs.drop_duplicates(inplace=True)
+                    pbar.update(1)
+
+                # save and delete the dataframe at end of batch to avoid memory issues
+                if len(extracted_docs.index) > 0 :
+                    extracted_docs.to_csv(
+                        saving_path_subsets
+                        + str(batch_index)
+                        +"_"
+                        + str(threshold)
+                        + "_"
+                        + dataset.replace(".csv", "").split("/")[-1]
+                        + "_extracted_docs.csv",
+                        index=False,
+                    )
+                    extracted_docs = pd.DataFrame(columns=data.columns)
 
     if len(info_sim) == 0:
         print("aucune similarité superieure au threshold")
@@ -198,12 +262,15 @@ def main(model_name, dataset, threshold, window_size):
         df_final = pd.concat([df for df in df_list if len(df.index) > 0], ignore_index=True)
         df_final.to_csv(
             "extracted_docs/"
-            + model_name.replace("/", "_")
-            + "_"
             + str(threshold)
             + "_"
+            + sliding_type
+            + "_"
             + dataset.replace(".csv", "").split("/")[-1]
-            + "_extracted_docs.csv",
+            + "_"
+            + model_name.replace("/", "_")
+            + "_extracted_docs"
+            + ".csv",
             index=False,
         )
     # delete subset directory after concat alls subset files
@@ -221,5 +288,6 @@ main(
     model_name= args.model_name,
     dataset= args.dataset,
     threshold= args.threshold,
-    window_size= args.window_size
+    window_size= args.window_size,
+    sliding_type = args.sliding_type
 )

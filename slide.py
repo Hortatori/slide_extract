@@ -7,6 +7,8 @@ import torch
 import time
 import argparse
 import shutil
+import subprocess
+import sys
 """
 Parameters
 * The SentenceBert model for representing text
@@ -14,7 +16,7 @@ Parameters
 * Size of sliding window 
 * Step of the slide 
 * The dataset
-each 10000 lines, write in a csv with the current results, then concat all to produce the complete results
+each JTs batch, write in a csv with the current results, then concat all to produce the complete results
 """
 
 KEY_WORDS = [
@@ -153,13 +155,28 @@ class JT_sliding():
 
 def main(model_name, dataset, threshold, window_size, sliding_type):
     begin_tim = time.time()
+    matrix_path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1]+"_"+model_name.replace("/", "_"))
+
+
+
+    # only for time sliding,checking if reordering has been done, if not, call JTtime
+    if not os.path.exists(dataset.split("/")[0] + "/reordered/" + dataset.split("/")[1]):
+        print("computing JTs indexes of ", dataset, "and reordering depending of time")
+        try :
+            full_command = f"python3 JT_ids.py --dataset {dataset}"
+            subprocess.run(full_command, shell = True, check=True)
+        except OSError as err:  
+            print(err)
+            sys.exit(1)
+    if sliding_type == "time" :
+        dataset = dataset.split("/")[0] + "/reordered/" + dataset.split("/")[1]
+
     data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
-    path = os.path.join("matrix", dataset.replace(".csv", "").split("/")[-1]+"_"+model_name.replace("/", "_"))
-    df_idx_paires = pd.read_csv(dataset.split("/")[0]+"/idx_docs_pairs_"+dataset.split("/")[1], quoting=csv.QUOTE_ALL)
+    df_idx_paires = pd.read_csv(dataset.split("/")[0]+"/idx_docs_pairs_"+dataset.split("/")[-1], quoting=csv.QUOTE_ALL)
     saving_path_subsets = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
     # AliBaba model need a SentenceTransformer(model_name, trust_remote_code=True) security issue if they change the config file (but huggingface should verify it)
     model = SentenceTransformer(model_name)
-    embedded_data = load_X(path, model, data, saving_path_subsets)
+    embedded_data = load_X(matrix_path, model, data, saving_path_subsets)
     cuda0 = torch.device('cuda:0')
     embedded_data = embedded_data.to(cuda0)
     keywords_embedded = encode_keywords(model, KEY_WORDS)
@@ -215,7 +232,6 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
     # sliding windows on each JT at a time
     else :
         for row in df_idx_paires.itertuples():
-            print("row of indexes : ", row)
             w_slide = JT_sliding(row[1], row[2], window_size, embedded_data)
             length = int(row[2]- (window_size-1)) - (int(row[1]))
             with tqdm.tqdm(total=length) as pbar:
@@ -283,7 +299,7 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
 args = parser.parse_args()
 #TODO :
 # a slicing with time 
-# a call JT_ids.py main(dataset)
+
 main(
     model_name= args.model_name,
     dataset= args.dataset,

@@ -222,7 +222,7 @@ def main(name):
                 reorder_dataset.to_csv("data/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
                 reorder_dataset = pd.DataFrame(columns=dataset.columns)
             else :    
-                os.mkdir("data/reordered/subsets/")
+                os.makedirs("data/reordered/subsets/")
                 reorder_dataset.to_csv("data/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
                 reorder_dataset = pd.DataFrame(columns=dataset.columns)
         count += 1

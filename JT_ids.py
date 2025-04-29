@@ -6,6 +6,8 @@ import numpy as np
 import argparse
 import os
 import tqdm
+import shutil
+import re
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument(
@@ -185,7 +187,7 @@ def main(name):
     duration_lines_by_channel, durations_by_channel, simple_datetime, idx_docs_pairs = (
         count_time(dataset)
     )
-    print("count_time ended")
+    print("count_time function ended, JTs indexing is ready")
     df_line, df_time, stats = stats_and_dataframing(
         duration_lines_by_channel, durations_by_channel, simple_datetime
     )
@@ -208,19 +210,35 @@ def main(name):
             reorder_pairs["time"].append(dataset.at[row[1],"start"])
     df_docs_pairs = pd.DataFrame(reorder_pairs)
     df_docs_pairs = df_docs_pairs.sort_values(by="time")
-    # print(df_docs_pairs)
     # reorder INA dataset by time
     reorder_dataset = pd.DataFrame(columns=dataset.columns)
+    count = 0
     for row in tqdm.tqdm(df_docs_pairs.itertuples(), total=len(df_docs_pairs)) : 
-        # print(row[1], row[2])
         slice = dataset.loc[row[1]:row[2]]
         reorder_dataset = pd.concat([reorder_dataset, slice])
-    # print(reorder_dataset)
-    if os.path.exists("data/reordered/"):
-        reorder_dataset.to_csv("data/reordered/" + name.split("/")[1], index=False)
-    else :    
-        os.mkdir("data/reordered/")
-        reorder_dataset.to_csv("data/reordered/" + name.split("/")[1], index=False)
+        if count % 10 == 0 or count == len(df_docs_pairs)-1:
+
+            if os.path.exists("data/reordered/subsets/"):
+                reorder_dataset.to_csv("data/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
+                reorder_dataset = pd.DataFrame(columns=dataset.columns)
+            else :    
+                os.mkdir("data/reordered/subsets/")
+                reorder_dataset.to_csv("data/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
+                reorder_dataset = pd.DataFrame(columns=dataset.columns)
+        count += 1
+
+    # Concat all the csv files produced by the script in the subset directory
+    fichiers_csv = [f for f in os.listdir("data/reordered/subsets/") if f.endswith(".csv")]
+    fichiers_csv.sort(key=lambda x: int(re.split('\W+|_', x)[-2])) 
+
+    df_list = [pd.read_csv(os.path.join("data/reordered/subsets/", fichier)) for fichier in fichiers_csv]
+    df_final = pd.concat([df for df in df_list if len(df.index) > 0], ignore_index=True)
+    df_final.to_csv(
+        "data/reordered/" 
+        + name.split("/")[1],
+        index=False,
+    )
+    shutil.rmtree("data/reordered/subsets/")
 
     df_docs_pairs.to_csv(name.split("/")[0] + "/idx_docs_pairs_" + name.split("/")[1], index=False)
     df_line.to_csv(name.split("/")[0] + "/line_" + name.split("/")[1], index=False)

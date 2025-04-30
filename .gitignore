@@ -1,6 +1,5 @@
 # LOCAL DIRECTORIES
 matrix/*
-data/*
 extracted_docs/*
 archives_other_thresholds/*
 # fichier config débug de vscode

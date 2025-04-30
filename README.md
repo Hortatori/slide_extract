@@ -22,6 +22,8 @@ Save the result in a csv file.
 Will save the selected documents in a dedicated directory "extracted_docs", file will be named "<threshold>_<datasetfilename>_extracted_docs.csv"
 
 ### JT_ids.py
+For running JT_ids.py:    
+```python3 JT_ids.py --dataset <data/dataset_filnename.csv>```  
 Produces batch of news by gathering documents lines : if the end time of the record line is equal to the start time of the following record line, we consider they belong to the same batch.
 * compute number of lines for each news "session" (JT)
 * compute duration of each news session

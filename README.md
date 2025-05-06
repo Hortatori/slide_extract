@@ -39,3 +39,37 @@ Will save the following files in data/ (same directory as the dataset file):
     min_time, max_time) by channel  
 Will save the reordered dataset in data/reordered
 
+
+
+------
+### TODO regarder packages ruptures
+
+# Quelques exemples
+
+### calcul des embeddings sur les 2 fichiers de transcription
+
+```python
+python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v01.csv --output /home/nherve/data --meta_file trs01_meta.csv --npy_file trs01_emb.npy
+python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v02.csv --output /home/nherve/data --meta_file trs02_meta.csv --npy_file trs02_emb.npy
+```
+
+### calcul des similarités sur les 2 fichiers de transcription
+python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file nahel_sim_wiki02.csv
+
+python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs01_meta.csv --npy_file trs01_emb.npy --similarity_file titan_sim_wiki01.csv
+python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file titan_sim_wiki02.csv### TODO regarder packages ruptures
+
+# Quelques exemples
+
+### calcul des embeddings sur les 2 fichiers de transcription
+
+```python
+python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v01.csv --output /home/nherve/data --meta_file trs01_meta.csv --npy_file trs01_emb.npy
+python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v02.csv --output /home/nherve/data --meta_file trs02_meta.csv --npy_file trs02_emb.npy
+```
+
+### calcul des similarités sur les 2 fichiers de transcription
+python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file nahel_sim_wiki02.csv
+
+python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs01_meta.csv --npy_file trs01_emb.npy --similarity_file titan_sim_wiki01.csv
+python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file titan_sim_wiki02.csv

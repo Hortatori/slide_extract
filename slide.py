@@ -78,12 +78,6 @@ parser.add_argument(
 
 
 def encode_dataset(model, data):
-    if model.get_max_seq_length() :
-        length = model.get_max_seq_length() -4 
-        print(f"Max input variable found for model : {length}")
-    else  :
-        print("No Max input variable found for model, keep default to 512")
-    data["text"] = data.text.str.slice(0, length) # not tokens, but closest
     embbed_texts = model.encode(
         data.text.tolist(), show_progress_bar=True, convert_to_tensor=True
     )
@@ -175,7 +169,10 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
     df_idx_paires = pd.read_csv(dataset.split("/")[0]+"/idx_docs_pairs_"+dataset.split("/")[-1], quoting=csv.QUOTE_ALL)
     saving_path_subsets = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
     # AliBaba model need a SentenceTransformer(model_name, trust_remote_code=True) security issue if they change the config file (but huggingface should verify it)
+    sim_history = []
     model = SentenceTransformer(model_name)
+    truncation = int(model.max_seq_length) - 2
+    model.max_seq_length = truncation
     embedded_data = load_X(matrix_path, model, data, saving_path_subsets)
     cuda0 = torch.device('cuda:0')
     embedded_data = embedded_data.to(cuda0)
@@ -196,11 +193,15 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
             for batch, indexes, batch_index in sliding.iterate():
                 similarity = model.similarity(batch, keywords_embedded)
                 avg_sim = torch.mean(similarity, dim=1)
+                sim_history.append(avg_sim)
                 if (avg_sim > threshold).any():
-                    extracted_docs = pd.concat(
-                        [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
-                        ignore_index=True,
-                    )
+                    if len(extracted_docs) != 0:
+                        extracted_docs = pd.concat(
+                            [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
+                            ignore_index=True,
+                        )
+                    else:
+                        extracted_docs = data.iloc[indexes[0] : indexes[1]]
                     info_sim.append(avg_sim)
                 extracted_docs.drop_duplicates(inplace=True)
                 # save and delete the dataframe on every 10000 iterations to avoid memory issues
@@ -238,11 +239,16 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
                 for batch, indexes, batch_index in w_slide.iterate():
                     similarity = model.similarity(batch, keywords_embedded)
                     avg_sim = torch.mean(similarity, dim=1)
+                    sim_history.append(avg_sim)
+
                     if (avg_sim > threshold).any():
-                        extracted_docs = pd.concat(
-                            [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
-                            ignore_index=True,
-                        )
+                        if len(extracted_docs) != 0:
+                            extracted_docs = pd.concat(
+                                [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
+                                ignore_index=True,
+                            )
+                        else:
+                            extracted_docs = pd.DataFrame(data.iloc[indexes[0] : indexes[1]])
                         info_sim.append(avg_sim)
                     extracted_docs.drop_duplicates(inplace=True)
                     pbar.update(1)
@@ -292,6 +298,11 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
     # delete subset directory after concat alls subset files
     shutil.rmtree(saving_path_subsets)
     end_tim = time.time()
+    dd = [[i[0].detach().item()] for i in sim_history]
+    rg = range(0, len(dd))
+    df = pd.DataFrame(dd, columns=["similarity"], index=rg)
+    df.to_csv("suite_similarite_mille.csv")
+
     delta = end_tim - begin_tim
     print(f"temps de traitement : {delta} secondes, soit {int(delta // 3600)} heures, {int((delta % 3600) // 60)} minutes, {int(delta % 60)} secondes")
 

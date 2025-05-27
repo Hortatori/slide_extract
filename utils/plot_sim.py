@@ -5,8 +5,8 @@ import os
 
 df = pd.read_csv("suite_similarite_JT_nahel_transcriptions_vocapia_26_06_2023_to_03_07_2023_Lajavaness_sentence-camembert-large.csv")
 # df = pd.read_csv("sim_27_06.csv")
-if not os.path.exists("plots/"):
-    os.mkdir("plots/")
+if not os.path.exists("utils/plots/"):
+    os.mkdir("utils/plots/")
 df["start_time"] = pd.to_datetime(df["start_time"], format = "%Y-%m-%d %H:%M:%S")
 print(df)
 

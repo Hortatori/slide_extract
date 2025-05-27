@@ -32,6 +32,18 @@ KEY_WORDS = [
     "Sur les réseaux sociaux, les images des affrontements ont tourné en boucle, et les débats ont été très polarisés. D’un côté, certains dénonçaient l’attitude de la police et rappelaient que ces émeutes étaient un cri de désespoir de jeunes qui ne se sentent pas écoutés. De l’autre, certains insistaient sur les dégâts causés et demandaient un retour à l’ordre rapide, dénonçant des actes de casseurs sans lien direct avec la mort de Nahel.",
     "Au final, ces violences urbaines ont mis en lumière un problème plus profond : la fracture entre une partie de la population et les institutions, notamment la police. Tant que ces tensions ne seront pas prises en compte avec des réformes concrètes, il y a fort à parier que ce genre d’explosion sociale se reproduira.",
 ]
+
+# test with another event
+# KEY_WORDS = [
+#     "L'accident du submersible Titan se produit lors d'une plongée dans les eaux internationales de l'océan Atlantique Nord au large de Terre-Neuve (Canada)",
+# "Le Titan est un petit submersible à visée touristique, exploité par OceanGate et destiné particulièrement à assurer des visites payantes de l'épave du Titanic. Le 18 juin 2023, il amorce une descente en direction de l'épave au cours de laquelle il subit une implosion entraînant sa destruction et la mort de ses cinq occupants. Des débris du Titan sont retrouvés par 3 800 m de fond, non loin de l'épave du Titanic. Le 28 juin 2023, des restes humains sont retrouvés parmi des débris remontés à la surface.",
+# "C'est l'accident sous-marin mortel le plus profond de l'Histoire[1]."
+# ]
+
+# test with wiki hat
+# KEY_WORDS = [
+#     "La mort de Nahel Merzouk, un adolescent franco-algérien de 17 ans, est causée par le tir à bout portant d'un policier le 27 juin 2023 lors d'un contrôle routier à Nanterre dans les Hauts-de-Seine (Île-de-France). Deux autres adolescents, âgés de 14 et 17 ans, sont passagers à bord de la voiture. La version policière, celle d'une voiture refusant un contrôle avant de foncer sur un fonctionnaire de police qui a ouvert le feu dans son bon droit, est initialement reprise par les médias, mais contredite dans les heures qui suivent par les témoignages des deux passagers. La victime est également présentée à tort dans plusieurs médias comme ayant un casier judiciaire, allégations qui sont démenties par la suite, son nom ne figurant qu'au fichier des antécédents judiciaires. Le 29 juin, le policier Florian M. est mis en examen pour homicide volontaire et placé en détention provisoire avant d'être remis en liberté quelques mois plus tard. L'événement provoque des émeutes dans de nombreuses villes françaises ainsi qu'en Belgique et en Suisse, dont le bilan des dégâts et de la répression dépasse celui des émeutes de 2005. Cette affaire relance le débat sur les violences policières, la question du racisme au sein de la police française et son usage des armes à feu, ainsi que son traitement par les médias qui se sont d'abord appuyés sur des sources policières. Elle provoque de nombreuses réactions en France de personnalités politiques, sportives, artistiques et religieuses, ainsi que de gouvernements étrangers et de l'Organisation des Nations unies. Une marche blanche et des cagnottes sont par ailleurs organisées."
+#     ]
 # working combos for now : 
 # -model_name Alibaba-NLP/gte-multilingual-base -threshold 0.63 
 # (only for a shorter dataset, AliBaba is too heavy as an embedding)
@@ -54,7 +66,7 @@ parser.add_argument(
 parser.add_argument(
     "--threshold",
     type=float,
-    default=0.4,
+    default=0.42,
     help="threshold"
 )
 parser.add_argument(
@@ -153,7 +165,7 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
 
 
 
-    # only for time sliding,checking if reordering has been done, if not, call JTtime
+    # checking if reordering has been done, if not, call JTtime
     if not os.path.exists(dataset.split("/")[0] + "/reordered/" + dataset.split("/")[1]):
         print("computing JTs indexes of ", dataset, "and reordering depending of time")
         try :
@@ -163,13 +175,14 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
             print(err)
             sys.exit(1)
     if sliding_type == "time" :
+        #if sliding_type == "time", we are using the reordered dataset, if not, we are using the reordered indexes  (sliding_time == "JTs")
         dataset = dataset.split("/")[0] + "/reordered/" + dataset.split("/")[1]
 
     data = pd.read_csv(dataset, quoting=csv.QUOTE_ALL)
     df_idx_paires = pd.read_csv(dataset.split("/")[0]+"/idx_docs_pairs_"+dataset.split("/")[-1], quoting=csv.QUOTE_ALL)
     saving_path_subsets = os.path.join("extracted_docs", dataset.replace(".csv", "").split("/")[-1]+"_subsets/")
     # AliBaba model need a SentenceTransformer(model_name, trust_remote_code=True) security issue if they change the config file (but huggingface should verify it)
-    sim_history = []
+    sim_history = {"similarity":[],"start_time":[], "channel":[]}
     model = SentenceTransformer(model_name)
     truncation = int(model.max_seq_length) - 2
     model.max_seq_length = truncation
@@ -192,8 +205,10 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
         with tqdm.tqdm(total=length) as pbar:
             for batch, indexes, batch_index in sliding.iterate():
                 similarity = model.similarity(batch, keywords_embedded)
-                avg_sim = torch.mean(similarity, dim=1)
-                sim_history.append(avg_sim)
+                avg_sim = torch.mean(similarity)
+                sim_history["similarity"].append(avg_sim)
+                sim_history["start_time"].append(data.at[indexes[0],"start"])
+                sim_history["channel"].append(data.at[indexes[0],"channel"])
                 if (avg_sim > threshold).any():
                     if len(extracted_docs) != 0:
                         extracted_docs = pd.concat(
@@ -239,7 +254,9 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
                 for batch, indexes, batch_index in w_slide.iterate():
                     similarity = model.similarity(batch, keywords_embedded)
                     avg_sim = torch.mean(similarity, dim=1)
-                    sim_history.append(avg_sim)
+                    sim_history["similarity"].append(avg_sim)
+                    sim_history["start_time"].append(data.at[indexes[0],"start"])
+                    sim_history["channel"].append(data.at[indexes[0],"channel"])
 
                     if (avg_sim > threshold).any():
                         if len(extracted_docs) != 0:
@@ -298,10 +315,19 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
     # delete subset directory after concat alls subset files
     shutil.rmtree(saving_path_subsets)
     end_tim = time.time()
-    dd = [[i[0].detach().item()] for i in sim_history]
-    rg = range(0, len(dd))
-    df = pd.DataFrame(dd, columns=["similarity"], index=rg)
-    df.to_csv("suite_similarite_mille.csv")
+    
+    sim_history["similarity"] = [i[0].detach().item() for i in sim_history["similarity"]]
+    rg = range(0, len(sim_history["similarity"]))
+    df = pd.DataFrame(sim_history, index=rg)
+    df['start_time'] = pd.to_datetime(df['start_time'], dayfirst=True, format="mixed")
+    df.to_csv("suite_similarite"
+            + "_"
+            + sliding_type
+            + "_"
+            + dataset.replace(".csv", "").split("/")[-1]
+            + "_"
+            + model_name.replace("/", "_")
+            + ".csv",)
 
     delta = end_tim - begin_tim
     print(f"temps de traitement : {delta} secondes, soit {int(delta // 3600)} heures, {int((delta % 3600) // 60)} minutes, {int(delta % 60)} secondes")

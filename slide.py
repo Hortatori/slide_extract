@@ -59,9 +59,8 @@ parser.add_argument(
 parser.add_argument(
     "--dataset",
     type=str,
-    default="data/formatted_medialex_transcriptions_vocapia_v1v2_20230301_20230731.csv",
-    help="path to dataset",
-    required=True
+    default="data/nahel_transcriptions_vocapia_26_06_2023_to_03_07_2023.csv",
+    help="path to dataset"
 )
 parser.add_argument(
     "--threshold",
@@ -247,6 +246,7 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
                 )
     # sliding windows on each JT at a time
     else :
+        keep_oldID = set()
         for row in df_idx_paires.itertuples():
             w_slide = JT_sliding(row[1], row[2], window_size, embedded_data)
             length = int(row[2]- (window_size-1)) - (int(row[1]))
@@ -259,6 +259,8 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
                     sim_history["channel"].append(data.at[indexes[0],"channel"])
 
                     if (avg_sim > threshold).any():
+                        current_old_ids = range(row[1], row[2])
+                        keep_oldID.update(current_old_ids)
                         if len(extracted_docs) != 0:
                             extracted_docs = pd.concat(
                                 [extracted_docs, data.iloc[indexes[0] : indexes[1]]],
@@ -296,7 +298,8 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
         # Concat all the csv files produced by the script in the subset directory
         fichiers_csv = [f for f in os.listdir(saving_path_subsets) if f.endswith(".csv")]
         fichiers_csv.sort(key=lambda x: int(x.split('_')[0])) 
-
+        df_old_ids = pd.DataFrame(list(keep_oldID))
+        df_old_ids.to_csv("extracted_docs/"+ "IDs_"+str(threshold)+ "_"+ sliding_type+ "_"+ dataset.replace(".csv", "").split("/")[-1]+ "_"+ model_name.replace("/", "_")+ ".csv",index=False)
         df_list = [pd.read_csv(os.path.join(saving_path_subsets, fichier)) for fichier in fichiers_csv]
         df_final = pd.concat([df for df in df_list if len(df.index) > 0], ignore_index=True)
         df_final.to_csv(

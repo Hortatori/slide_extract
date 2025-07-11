@@ -337,8 +337,6 @@ def main(model_name, dataset, threshold, window_size, sliding_type):
 
 
 args = parser.parse_args()
-#TODO :
-# a slicing with time 
 
 main(
     model_name= args.model_name,

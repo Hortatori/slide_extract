@@ -6,6 +6,8 @@ archives_other_thresholds/*
 suite*
 utils/plots/*
 utils/topics/*
+articles/*
+eval_outputs/*
 # fichier config débug de vscode
 .vscode/*
 

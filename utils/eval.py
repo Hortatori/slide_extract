@@ -3,6 +3,7 @@ import argparse
 import re
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import tqdm as tqdm
+import os
 # --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path matrix/nrv_extracted_docs_030.csv 
 
 
@@ -97,7 +98,7 @@ def choose_df_to_overlaps(fixed_df, running_df) :
     fixed_df['attributed_gold'] = attributed_gold
     print("nb of rows with overlaps",i)
     print(fixed_df)
-    fixed_df.to_csv("test_eval.csv")
+    # fixed_df.to_csv("test_eval.csv")
     return fixed_df
 
 def evaluation(df) :
@@ -119,7 +120,11 @@ def main(args) :
     df, notice = preprocess(args)
     output_labeled = choose_df_to_overlaps(fixed_df = df, running_df = notice)
     scores = evaluation(output_labeled)
+    scores["gold_file"] = args.notice_path
+    scores["pred_file"] = args.extract_path
     print(scores)
+    output = pd.DataFrame([scores])
+    output.to_csv(os.path.join("eval_outputs","_".join([args.extract_path.split("/")[1].split(".")[0],"vs",args.notice_path.split("/")[1].split(".")[0],".csv"])))
 
 
 if __name__ == "__main__":
@@ -127,10 +132,5 @@ if __name__ == "__main__":
     parser.add_argument('--notice_path', required=True, help="path and file of notice")
     parser.add_argument('--extract_path', required=True, help="path and file of extracted docs")
     args = parser.parse_args()
-
-
-    # dont forget : could define value that can be used globally (but not really clean)
-    # NOTICE_PATH = args.notice_path
-    # DOCS_PATH = args.extract_path
 
     main(args)

@@ -1,3 +1,4 @@
+# xan version 0.51.0
 N_SEQUENCES=10
 
 echo "Sample $N_SEQUENCES sequences per channel..."

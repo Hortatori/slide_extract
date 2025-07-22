@@ -1,6 +1,9 @@
-# Add a sequence_id column to the transcription file.
+# Add a sequence_id column to the input file. A sequence is a set of contiguous transcriptions
+# (the end of the first transcription is close enough to the beginning of the next one).
+#
 # If two lines are separated by less than SECONDS, and if they are from the same channel,
 # they are grouped together in the same sequence.
+#
 # The input file is supposed to contain the following columns: start, end, channel.
 # It is supposed to be sorted by channel and by start.
 #

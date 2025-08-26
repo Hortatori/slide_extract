@@ -9,6 +9,8 @@ utils/topics/*
 articles/*
 eval_outputs/*
 data/*
+__pycache__/*
+utils/__pycache__/*
 # LOCAl outputs
 *.png
 *.csv

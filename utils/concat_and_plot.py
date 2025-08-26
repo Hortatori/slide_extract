@@ -2,11 +2,15 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 
+# concat all evaluations from evals_output directory
+# plot a graph of p,r,f1,acc for each threshold
+# names are hardcoded for now
+
 dir = "eval_outputs/"
 all = [pd.read_csv(dir+f) for f in os.listdir(dir)] 
 
-sim_ex = [i for i in all if i.at[0,"pred_file"].split(".")[0].endswith("2023") is False]
-t = [int(i.at[0,"pred_file"].split("/")[1].split("_")[-1].split(".")[0]) for i in sim_ex]
+sim_ex = [i for i in all if i.at[0,"pred_file"].split(".")[0].endswith("2023") is False] # keywords baseline out, select only pred
+t = [int(i.at[0,"pred_file"].split("/")[1].split("_")[-1].split(".")[0]) for i in sim_ex] # threshold value
 sim_ex = pd.concat(sim_ex)
 sim_ex["t"] = t
 keys_ex = [i for i in all if i.at[0,"pred_file"].split(".")[0].endswith("2023") is True]
@@ -32,13 +36,13 @@ for channel, group in sim_ex.groupby('channel'):
 
     plt.figure(figsize=(10, 6))
     for i in [['Accuracy', 'acc','coral'], ['F1 Score', 'f1', 'dodgerblue'], ['Precision', 'p', 'forestgreen'], ['Recall', 'r', 'orange']] :
-        line, = plt.plot(group['t'], group[i[1]], label=i[0], color = i[2])
+        line, = plt.plot(group['t'], group[i[1]], label=i[0], color = i[2],marker='o')
         if len(baseline) > 0 :
             # écrase les couleurs et label pour éviter multiples labels/couleurs
             frst = plt.axhline(y = baseline[baseline["key_words"] == "keyword"][i[1]].item(), label=line.get_label(), color=line.get_color(), linestyle='dotted')
             frst.set_label('_' + line.get_label()) 
-            scd = plt.axhline(y = baseline[baseline["key_words"] == "refus"][i[1]].item(), label=line.get_label(), color=line.get_color(), linestyle='dashdot')
-            scd.set_label('_' + line.get_label())
+            # scd = plt.axhline(y = baseline[baseline["key_words"] == "refus"][i[1]].item(), label=line.get_label(), color=line.get_color(), linestyle='dashdot')
+            # scd.set_label('_' + line.get_label())
 
 
     plt.ylim(0.2, 1)

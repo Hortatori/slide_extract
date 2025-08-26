@@ -4,25 +4,25 @@ import re
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import tqdm as tqdm
 import os
-# --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path matrix/nrv_extracted_docs_030.csv 
+# --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path extracted_docs/02_labelledJT_nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023_Lajavaness_sentence-camembert-large.csv 
 
 
 def preprocess(args) :
     # for nrv minutes output
-    if args.extract_path.split('_')[0] == 'matrix/nrv' :
-        df = pd.read_csv(args.extract_path, dtype = {"channel": str, "start": str, "end": str , "start_id": int, "end_id": int, "text": str, "label": int})
-        df ["start"] = pd.to_datetime(df["start"])
-        df["end"] = pd.to_datetime(df["end"])
-    # for mj lines output
-    else:
+    if "vocapia" in args.extract_path :
         df = pd.read_csv(args.extract_path)
         df ["start"] = pd.to_datetime(df["start"], format="%d/%m/%Y %H:%M:%S")
         df["end"] = pd.to_datetime(df["end"], format="%d/%m/%Y %H:%M:%S")
+    else:
+        df = pd.read_csv(args.extract_path, dtype = {"channel": str, "start": str, "end": str , "start_id": int, "end_id": int, "text": str, "label": int})
+        df ["start"] = pd.to_datetime(df["start"])
+        df["end"] = pd.to_datetime(df["end"])
     notice = pd.read_csv(args.notice_path)
     # filter docs with the notice channel
     channel = notice.at[0,"ch_code"]
     if channel == 'FR2' : channel = 'France2'
     df = df[df['channel'].apply(lambda x: bool(re.search(channel, x)))]
+    print(df['label'].value_counts())
 
     notice = notice.dropna(subset=['Durée','Heure','Description'])
     # pas d heure de fin dans le fichier donc calcul
@@ -52,6 +52,7 @@ def compute_overlap(row_pred, notice_corpus):
 
         earlier_start = min(row_pred['start'], notice_c['start'])
         lastest_end = max(row_pred['end'], notice_c['end'])
+        # largest : initialement pour comparer le ratio obtenu avec la totalité des deux durée
         largest = lastest_end - earlier_start
 
         #detection d'un chevauchement
@@ -66,45 +67,50 @@ def compute_overlap(row_pred, notice_corpus):
     return total_overlap.total_seconds(), total_intersections, rld 
 
 # doc extracted qui doit avoir une colonne label avec 1 si présent dans extraction et 0 sinon 
-# crer cette colonne au moment de la generation des docs extracted : en conservant tout et en mettant 0 dans une colonne label ou 1 si >threshold
-# modifs code pour avoir un label (fait sur nrv, pas sur mj)
-    # maybe to do faire une loop sur chaque date (groupby) plutôt que tout le dataset où y aura des vides les mauvais jours.
+# maybe to do faire une loop sur chaque date (groupby) plutôt que tout le dataset où y a des pas d'overlap les mauvais jours.
 
 def choose_df_to_overlaps(fixed_df, running_df) :
     overlap_duration = list()
     attributed_gold = list()
-    i = 0
+    # rappel : ce sont des fenêtres glissantes, donc elles se chevauchent plusieurs fois sur les memes rangs de notices
+    history_n = 0
     for _, row in tqdm.tqdm(fixed_df.iterrows(), total=fixed_df.shape[0]):
 
 
         total_overlap, intersection_n, rld = compute_overlap(row, running_df)
         overlap_duration.append(total_overlap)
         # attribuer une notice à chaque ligne de pred : - si un seul chevauchement, attribution | si plus d'un chevauchement : label du plus gros chevauchement | si pas de chevauchement : pas de label
-        if total_overlap > 0.0 :
-            # rappel : ce sont des fenêtres glissantes, donc elles se chevauchent plusieurs fois sur les memes rangs de notices
-            i += 1
         if len(rld['label']) > 1 :
-            # probleme : si égalité il choisit le premier (pas grave, ratio est à 10 decimales près) 
+            # plusieurs overlaps : récupère le label du pred row avec le plus long chevauchement. INFO : si égalité, max() prend le premier
             max_index = rld['ratio_delta'].index(max(rld['ratio_delta']))
             selected_label = int(rld['label'][max_index])
+            history_n += 1
         elif len(rld['label']) == 0 :
+            # no overlap in this row
             selected_label = None
         else :
+            # un seul overlap : récupère le label du pred row
             selected_label = int(rld['label'][0])
+            history_n += 1
 
         attributed_gold.append(selected_label)
         # print(f"intersections = {intersection_n} :: {rld} :: in pred row {_}")
     fixed_df['overlap_duration'] = overlap_duration # not a ratio, duration of total notice overlap for each doc row of one minute windows
     fixed_df['attributed_gold'] = attributed_gold
-    print("nb of rows with overlaps",i)
+    print("nb of rows with overlaps", history_n)
     print(fixed_df)
     # fixed_df.to_csv("test_eval.csv")
     return fixed_df
 
 def evaluation(df) :
-    print(f"nb of docs of with NaN: {df.shape} ")
+    print(f"nb of docs of with attributed_gold = NaN (no overlap): {df.shape} ")
+    print(df['attributed_gold'].value_counts())
+    print(df['label'].value_counts())
     df = df.dropna(subset=['attributed_gold'])
+
     print(f"nb of docs of  without NaN: {df.shape} ")
+    print(df['attributed_gold'].value_counts())
+    print(df['label'].value_counts())
     df = df.astype({'attributed_gold' : 'int'})
     print(df.dtypes)
     acc = accuracy_score(df['attributed_gold'], df['label'])

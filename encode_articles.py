@@ -1,6 +1,5 @@
 # N. HERVE - INA Research - 05/05/2025
 # Medialex Sprint 2
-#TODO test if batch of minutes is different of batch of lines when extracting
 from sentence_transformers import SentenceTransformer
 import argparse
 import logging
@@ -13,7 +12,8 @@ from tqdm import tqdm
 import numpy as np
 import polars as pl
 from pathlib import Path
-from datetime import datetime, timedelta
+import time as time
+import os
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(name)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger("emb")
@@ -27,6 +27,7 @@ SIMILARITY_SCHEMA = {"channel": str, "start": pl.Datetime, "end": pl.Datetime, "
 META_FILE = None
 SIMILARITY_FILE = None
 NPY_FILE = None
+THRESHOLD = None
 
 def load_model():
     logger.info(f"Loading model")
@@ -36,10 +37,10 @@ def load_model():
     return model
 
 
-def create_press_embeddings(model, otmedia_file):
-    logger.info(f"Loading articles from {otmedia_file}")
+def create_press_embeddings(model, args):
+    logger.info(f"Loading articles from {args.otmedia}")
     press_embeddings = []
-    with open(otmedia_file, "rt") as f:
+    with open(args.otmedia, "rt") as f:
         for line in f:
             article = json.loads(line)
             text = article['document'].replace("\n", " ")
@@ -49,9 +50,45 @@ def create_press_embeddings(model, otmedia_file):
             press_embeddings.append(emb)
     return np.array(press_embeddings)
 
+def create_day_press_embedding(model, args):
+    # logger.info(f"Loading days article from {otmedia_path}")
+    # for  file in os.listdir(otmedia_path) :
+    #     file = os.path.join(otmedia_path, file)
+    otmedia_path = Path(args.output, args.otmedia)
+    # Liste de mots ou regex
+    re_select = [r"(?i)jeune[s]?\sconducteur[s]?", r"(?i)affrontement[s]", r"(?i)\brefus\s+(de\sobtempérer|d'obtempérer|d\sobtempérer)\b", r"(?i)(é|e)meute[s]?" ,r"(?i)(é|e)meutier[s]?",
+                  r"(?i)cagnotte[s]?", r"(?i)(l'haÿ|lhay)(-|\s|)les(-|\s|)roses", r"(?i)violence[s]?", r"(?i)(clichy|\-sous\-bois)", r"(?i)na[h]?(e|ë)l", r"(?i)no(ë|e)l"]
+    pattern = "|".join(re_select)
+    re_exclude = [r"Prigo(j|zh|g)in",r"Bolsonaro",r"Wagner",r"CRA",r"Pakistan",r"Biélorussie",r"Ukraine",r"Montréal",r"Russie",
+                  r"(?i)Tribunal\sde\sCommerce",r"(?i)SNCF",r"(?i)pétanque",r"(?i)ARCOM",r"(?i)sénégal",r"(?i)gabon",r"(?i)sierra\sleone"]
+    # exclusion_pattern = r"Prigo(j|zh|g)in|Bolsonaro|Wagner|CRA|Pakistan|Biélorussie|Ukraine|Montréal|Russie|(?i)Tribunal\sde\sCommerce|(?i)SNCF|(?i)pétanque|(?i)hanouna|(?i)sénégal|(?i)gabon|(?i)sierra\sleone"
+    exclusion_pattern = "|".join(re_exclude)
+    with open(otmedia_path) as day_article :
+        logging.info(f"Processing : {otmedia_path}")
+
+        df_article = pl.read_csv(day_article, separator=",", quote_char='"')
+        # Filtrer
+        df_article = df_article.filter(~pl.col("media").str.contains(r"BASKETEUROPE|BLOG_DE_JEAN_MARC_MORANDINI|VILLE_RAIL_TRANSPORTS"))
+        df_article = df_article.filter(
+            pl.col("text").str.contains(pattern, literal=False) &
+            ~pl.col("text").str.contains(exclusion_pattern, literal=False)
+        )
+        print(df_article)
+        text = pl.Series(df_article.select('text')).to_list()
+        embbed_texts = model.encode(
+            text, show_progress_bar=True, normalize_embeddings = True
+        )
+        #TODO necessaire de save npy? voir la taille des articles filtrés
+        # f = open(Path(day_article.split(".")[0]+".npy"), "wb")
+        # np.save(f, embbed_texts)
+        # f.close()
+        df_article.write_csv("articles/testfilter.csv")
+        logging.info(f"Processed : {otmedia_path}")
+        day_article.close()
+        return embbed_texts
+
 
 def create_adhoc_embeddings(model):
-    # text = "La mort de Nahel Merzouk, un adolescent franco-algérien de 17 ans, est causée par le tir à bout portant d'un policier le 27 juin 2023 lors d'un contrôle routier à Nanterre dans les Hauts-de-Seine (Île-de-France). Deux autres adolescents, âgés de 14 et 17 ans, sont passagers à bord de la voiture. La version policière, celle d'une voiture refusant un contrôle avant de foncer sur un fonctionnaire de police qui a ouvert le feu dans son bon droit, est initialement reprise par les médias, mais contredite dans les heures qui suivent par les témoignages des deux passagers. La victime est également présentée à tort dans plusieurs médias comme ayant un casier judiciaire, allégations qui sont démenties par la suite, son nom ne figurant qu'au fichier des antécédents judiciaires. Le 29 juin, le policier Florian M. est mis en examen pour homicide volontaire et placé en détention provisoire avant d'être remis en liberté quelques mois plus tard. L'événement provoque des émeutes dans de nombreuses villes françaises ainsi qu'en Belgique et en Suisse, dont le bilan des dégâts et de la répression dépasse celui des émeutes de 2005. Cette affaire relance le débat sur les violences policières, la question du racisme au sein de la police française et son usage des armes à feu, ainsi que son traitement par les médias qui se sont d'abord appuyés sur des sources policières. Elle provoque de nombreuses réactions en France de personnalités politiques, sportives, artistiques et religieuses, ainsi que de gouvernements étrangers et de l'Organisation des Nations unies. Une marche blanche et des cagnottes sont par ailleurs organisées."
     # text = "L'accident du submersible Titan se produit lors d'une plongée dans les eaux internationales de l'océan Atlantique Nord au large de Terre-Neuve (Canada). Le Titan est un petit submersible à visée touristique, exploité par OceanGate et destiné particulièrement à assurer des visites payantes de l'épave du Titanic. Le 18 juin 2023, il amorce une descente en direction de l'épave au cours de laquelle il subit une implosion entraînant sa destruction et la mort de ses cinq occupants. Des débris du Titan sont retrouvés par 3 800 m de fond, non loin de l'épave du Titanic. Le 28 juin 2023, des restes humains sont retrouvés parmi des débris remontés à la surface. C'est l'accident sous-marin mortel le plus profond de l'Histoire. "
     text = [
     "L'affaire Nahel concerne la mort de Nahel Merzouk, un adolescent de 17 ans, tué par un policier lors d'un contrôle routier à Nanterre le 27 juin 2023. Nahel, qui conduisait une voiture sans permis, a été arrêté par deux policiers à moto. Une vidéo, largement diffusée sur les réseaux sociaux, montre un policier pointant son arme sur lui à bout portant. Lorsque Nahel a tenté de redémarrer, le policier a tiré, provoquant sa mort.Cette affaire a suscité une immense indignation en France. La vidéo a contredit la version initiale des forces de l’ordre, entraînant une vague de colère et de violentes émeutes dans plusieurs villes. Les manifestations ont donné lieu à des affrontements avec la police et à de nombreux dégâts matériels. Sur le plan judiciaire, le policier responsable du tir a été mis en examen pour homicide volontaire et placé en détention provisoire.",
@@ -73,63 +110,68 @@ def create_adhoc_embeddings(model):
     return emb
 
 
-def create_transcription_embeddings(model, transcription_file, output_dir):
-    logger.info(f"Loading transcriptions from {transcription_file}")
-    trs_table  = pl.read_csv(transcription_file, separator=",", quote_char='"')
+def create_transcription_embeddings(model, args):
+    logger.info(f"Loading transcriptions from {args.trs}")
+    trs_table  = pl.read_csv(args.trs, separator=",", quote_char='"')
     logger.info(f" - loaded   {trs_table.columns} : {trs_table.shape}")
     trs_table  = trs_table.with_columns(
         pl.col("start").str.to_datetime("%d/%m/%Y %H:%M:%S"),
         pl.col("end").str.to_datetime("%d/%m/%Y %H:%M:%S")
     )
-    trs_table = trs_table.with_row_index(name="original_id")
     trs_table = trs_table.sort("channel", "start")
+    trs_table = trs_table.with_row_index(name="original_id")
     # trs_table = trs_table.filter(pl.col("channel") == "TF1")
     # trs_table = trs_table.filter(pl.col("start") >= BEGIN_DATE, pl.col("start") <= END_DATE)
     logger.info(f" - filtered {trs_table.columns} : {trs_table.shape}")
 
     meta = pl.DataFrame(schema=META_SCHEMA)
-    f = open(Path(output_dir, NPY_FILE), "wb")
-    for start_idx in range(0, trs_table.shape[0]):
-        start_row = trs_table.row(start_idx, named=True)
-        start_start = start_row["start"]
-        origin_start = start_row["original_id"]
-        start_channel = start_row["channel"]
-        full_text = ""
+    f = open(Path(args.output, args.npy_file), "wb")
+    with tqdm(total=trs_table.shape[0]) as pbar:
+        for start_idx in range(0, trs_table.shape[0]):
+            start_row = trs_table.row(start_idx, named=True)
+            start_start = start_row["start"]
+            origin_start = start_row["original_id"]
+            start_channel = start_row["channel"]
+            full_text = ""
 
-        current_idx = start_idx
-        while current_idx < trs_table.shape[0]:
-            current_row = trs_table.row(current_idx, named=True)
-            if current_row["channel"] != start_channel:
-                break
-            delta = current_row["start"] - start_start
-            if delta.total_seconds() > 60:
-                break
-            current_end = current_row["end"]
-            origin_end = current_row["original_id"]
-            full_text = full_text + " " + current_row["text"]
-            current_idx += 1
+            current_idx = start_idx
+            while current_idx < trs_table.shape[0]:
+                current_row = trs_table.row(current_idx, named=True)
+                if current_row["channel"] != start_channel:
+                    break
+                delta = current_row["start"] - start_start
+                if delta.total_seconds() > 60:
+                    break
+                current_end = current_row["end"]
+                origin_end = current_row["original_id"]
+                full_text = full_text + " " + current_row["text"]
+                current_idx += 1
 
-        full_text = full_text.strip()
-        if len(full_text) > 0:
-            logger.info(f"    ~ {start_idx} ::: {start_channel} {start_start} {current_end} - {current_end - start_start} ::: origin start id {origin_start}, origin end id {origin_end}")
-            ft_emb = model.encode(full_text, show_progress_bar=False, normalize_embeddings=True)
-            np.save(f, ft_emb)
-            this = pl.DataFrame({"channel": start_channel, "start": start_start, "end": current_end, "start_id": origin_start, "end_id": origin_end, "text": full_text})
-            meta = meta.extend(this)
+            full_text = full_text.strip()
+            if len(full_text) > 0:
+                # logger.info(f"    ~ {start_idx} ::: {start_channel} {start_start} {current_end} - {current_end - start_start} ::: origin start id {origin_start}, origin end id {origin_end}")
+                ft_emb = model.encode(full_text, show_progress_bar=False, normalize_embeddings=True)
+                np.save(f, ft_emb)
+                this = pl.DataFrame({"channel": start_channel, "start": start_start, "end": current_end, "start_id": origin_start, "end_id": origin_end, "text": full_text})
+                meta = meta.extend(this)
+            pbar.update(1)
 
-    meta.write_csv(Path(output_dir, META_FILE), separator=",", quote_char='"', quote_style='non_numeric')
+
+    meta.write_csv(Path(args.output, args.meta_file), separator=",", quote_char='"', quote_style='non_numeric')
     f.close()
 
 
-def process_embeddings(model, press_embeddings, output_dir, trs):
-    meta = Path(output_dir, META_FILE)
-    embeddings = Path(output_dir, NPY_FILE)
+def process_embeddings(model, press_embeddings, args):
+    meta = Path(args.output, args.meta_file)
+    embeddings = Path(args.output, args.npy_file)
 
     logger.info(f"Loading metadata from {meta}")
     meta = pl.read_csv(meta, separator=",", quote_char='"', schema_overrides=META_SCHEMA)
 
     all_similarities = pl.DataFrame(schema=SIMILARITY_SCHEMA)
-    all_extracted = pl.DataFrame(schema = META_SCHEMA)
+    # all_extracted = meta
+    # all_extracted.with_columns(label=pl.lit(0))
+    meta = meta.with_columns(label=pl.lit(0, dtype=int))
     extracted_old_ids = set()
     logger.info(f"Processing embeddings from {embeddings}")
     current_idx = 0
@@ -144,27 +186,36 @@ def process_embeddings(model, press_embeddings, output_dir, trs):
                 current_end = current_row["end"]
                 current_channel = current_row["channel"]
                 similarities = model.similarity(ft_emb, press_embeddings)
-                if torch.mean(similarities) > 0.50 :
+                if torch.mean(similarities) > float(args.threshold) :
                     id_list = range(current_row["start_id"], current_row["end_id"])
                     extracted_old_ids.update(id_list)
-                    df_text = pl.DataFrame(current_row)
-                    all_extracted = all_extracted.extend(df_text)
+                    meta[current_idx,"label"] = 1
+                    # logging.info(f" current row {current_row}")
+                    # df_text = pl.DataFrame(current_row)
+                    # all_extracted = all_extracted.extend(df_text)
                 # logger.info(f"[{current_idx}] {ft_emb.shape} - {current_channel} {current_start} ::: {similarities}")
                 current_idx += 1
 
                 this = pl.DataFrame({"channel": current_channel, "start": current_start, "end": current_end, "max": torch.max(similarities), "min": torch.min(similarities), "avg": torch.mean(similarities)})
                 all_similarities = all_similarities.extend(this)
-    all_similarities.write_csv(Path(output_dir, SIMILARITY_FILE), separator=",", quote_char='"', quote_style='non_numeric')
-    all_extracted.write_csv(Path(output_dir, "nrv_extracted_docs_050.csv"), separator=",", quote_char='"', quote_style='non_numeric')
-    ids_write = pl.DataFrame(list(extracted_old_ids))
-    ids_write.write_csv(Path(output_dir,"extracted_ids_050.csv"))
+    all_similarities.write_csv(Path(args.output, args.similarity_file), separator=",", quote_char='"', quote_style='non_numeric')
+    if args.otmedia :
+        meta.write_csv(Path(args.output, "nrv_extracted_docs_"+"".join(str(args.threshold).split("."))+"_"+args.otmedia.split(".")[0]+".csv"), separator=",", quote_char='"', quote_style='non_numeric')
+    else :
+        meta.write_csv(Path(args.output, "nrv_extracted_docs_"+"".join(str(args.threshold).split("."))), separator=",", quote_char='"', quote_style='non_numeric')
+    # ids_write = pl.DataFrame(list(extracted_old_ids))
+    # ids_write.write_csv(Path(args.output,"extracted_ids_050.csv"))
 
 def main(args):
+    start = time.time()
     model = load_model()
-    # create_transcription_embeddings(model, args.trs, args.output)
-    # press_embeddings = create_press_embeddings(model, args.otmedia)
-    press_embeddings = create_adhoc_embeddings(model)
-    process_embeddings(model, press_embeddings, args.output, args.trs)
+    # create_transcription_embeddings(model, args)
+    # press_embeddings = create_press_embeddings(model, args)
+    # press_embeddings = create_adhoc_embeddings(model)
+    press_embeddings = create_day_press_embedding(model, args)
+    process_embeddings(model, press_embeddings, args)
+    end = time.time()
+    print(f"duration : {end-start}")
 
 
 if __name__ == "__main__":
@@ -189,6 +240,9 @@ if __name__ == "__main__":
     parser.add_argument("--npy_file",
                         type=str,
                         help="File to store sliding window ebeddings")
+    parser.add_argument("--threshold",
+                        type = str,
+                        help="similarity threshold")
 
     parsed = parser.parse_args()
 
@@ -196,6 +250,7 @@ if __name__ == "__main__":
     META_FILE = parsed.meta_file
     SIMILARITY_FILE = parsed.similarity_file
     NPY_FILE = parsed.npy_file
+    THRESHOLD = parsed.threshold
 
     main(parsed)
 

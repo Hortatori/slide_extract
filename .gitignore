@@ -8,6 +8,14 @@ utils/plots/*
 utils/topics/*
 articles/*
 eval_outputs/*
+data/*
+# LOCAl outputs
+*.png
+*.csv
+# sauf les textes à comparer
+!data/wiki_nahel.csv
+!data/gpt_nahel.csv
+!data/titan.csv
 # fichier config débug de vscode
 .vscode/*
 

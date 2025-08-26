@@ -116,7 +116,7 @@ def main(args):
                 sim_history["channel"].append(data.at[indexes[0],"channel"])
 
                 if (avg_sim > args.threshold).any():
-                    current_old_ids = range(indexes[0], indexes[1])
+                    current_old_ids = range(indexes[0], indexes[1]+1)
                     keep_oldID.update(current_old_ids)
 
                     info_sim.append(avg_sim)
@@ -160,13 +160,13 @@ parser.add_argument(
     "--keywords",
     type=str,
     required=True,
-    default="gpt_nahel.csv",
+    default="data/gpt_nahel.csv",
     help="text that will be compared"
 )
 parser.add_argument(
     "--dataset",
     type=str,
-    default="data/nahel_transcriptions_vocapia_26_06_2023_to_03_07_2023.csv",
+    default="data/nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv",
     required=True,
     help="path to dataset"
 )

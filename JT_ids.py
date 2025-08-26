@@ -15,7 +15,7 @@ parser.add_argument(
 )
 
 
-def count_time(dataset):
+def count_time(name, dataset):
     """
     Processes the dataset to compute and categorize news sessions based on start and end times.
 
@@ -33,6 +33,17 @@ def count_time(dataset):
             - simple_datetime (defaultdict): A dictionary mapping each channel to a list of timedelta objects representing session durations.
             - idx_docs_pairs (list): A list of lists, each containing the start and end indices of a session.
     """
+    # applied on extracted documents
+    if name.split('_')[0] == 'output' :
+        dataset["start"] = pd.to_datetime(dataset["start"])
+        dataset["end"] = pd.to_datetime(dataset["end"])
+        dataset["start"] = dataset["start"].dt.strftime("%d/%m/%Y %H:%M:%S")
+
+        dataset["end"] = dataset["end"].dt.strftime("%d/%m/%Y %H:%M:%S")
+    #applied on original data
+    else :
+        dataset = pd.read_csv(name, quoting=csv.QUOTE_ALL)
+
     n = 0
     # will contain docs indexes of start and end of one JT
     idx_list = 0
@@ -183,9 +194,10 @@ def stats_and_dataframing(
 
 def main(name):
     dataset = pd.read_csv(name, quoting=csv.QUOTE_ALL)
+
     print("indexing by JTs ...")
     duration_lines_by_channel, durations_by_channel, simple_datetime, idx_docs_pairs = (
-        count_time(dataset)
+        count_time(name, dataset)
     )
     print("count_time function ended, JTs indexing is ready")
     df_line, df_time, stats = stats_and_dataframing(
@@ -202,7 +214,10 @@ def main(name):
 
     # à utiliser dans slide.py : if not os.path.exists(name.split("/")[0] + "/" + name.split("/")[1] + "_reordered"): pour appeller JTtime si le reorder n'existe pas encore
     reorder_pairs = {"start_id" : [],"end_id" : [],"time":[]}
-    if not os.path.exists(name.split("/")[0] + "/" + name.split("/")[1] + "_reordered"):
+    # si utilisé pour un doc de texte extraits (code trop rigide pour tout changer) 
+    if name.split('_')[0] == 'output' :
+        name = "data/"+name
+    if not os.path.exists(os.path.join("data", name.split("/")[1] + "_reordered")):
         for row in tqdm.tqdm(df_docs_pairs.itertuples(), total=len(df_docs_pairs)) : 
             # print(row[1], row[2])
             reorder_pairs["start_id"].append(row[1])
@@ -219,12 +234,12 @@ def main(name):
         reorder_dataset = pd.concat([reorder_dataset, slice])
         if count % 10 == 0 or count == len(df_docs_pairs)-1:
 
-            if os.path.exists(name.split("/")[0] + "/reordered/subsets/"):
-                reorder_dataset.to_csv(name.split("/")[0] + "/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
+            if os.path.exists("data/reordered/subsets/"):
+                reorder_dataset.to_csv("data/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
                 reorder_dataset = pd.DataFrame(columns=dataset.columns)
             else :    
-                os.makedirs(name.split("/")[0] + "/reordered/subsets/")
-                reorder_dataset.to_csv(name.split("/")[0] + "/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
+                os.makedirs("data/reordered/subsets/")
+                reorder_dataset.to_csv("data/reordered/subsets/" + re.split("\W+", name)[1] + "_" + str(count) + ".csv", index=False)
                 reorder_dataset = pd.DataFrame(columns=dataset.columns)
         count += 1
 

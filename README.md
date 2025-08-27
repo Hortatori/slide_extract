@@ -1,25 +1,26 @@
-The two scripts extract texts from TV news bulletin transcriptions, selecting those that are similar to a text describing a specific event. (The event(s) here are the death of Nahel Mazrouk and the following riots).
-### slide.py
-For running slide.py with minimal customization :  
-```python3 slide.py --dataset <data/dataset_filnename.csv>```
+This repo aims to extract texts from TV news transcriptions, selecting those that are semantically similar to a text describing a specific event. (The event(s) here are the death of Nahel Mazrouk and the following riots).
 
-If you want to custom your run, you can use the following parameters :
+# Select the texts similar to the press articles of the day
+By running run_encode.py with the following command 
+```python3 run_encode.py``` 
+(will run encode_article.py for each day)
 
-```python3 slide.py --dataset <data/dataset_filename.csv> --model "Lajavaness/sentence-camembert-large" --windows 8 --threshold 0.4 --sliding_type JT```
+# Select the texts similar to only one text describing the event
 
-* ```--dataset``` : the name of your INA JT dataset
-* ```--model``` : the SentenceBert model you want to use. The embedding of reference texts and dataset texts has to be a Sentence Transformer architecture for now.
-* ```--windows``` : windows parameter is the number of documents (equivalent of batches of lines here) which are taken into account when comparing with reference text
-* ```--threshold``` : threshold parameter is the minimal cosine similarity for extracting a batch of lines. The higher the threshold, the closer the selected texts will be to the reference text.
-* ```--sliding_type```  only two options here : JT or time. With JT, sliding windows take into account the JT divisions by running on each JT at a time. With time, sliding windows 
-run on everything at once.
+### embeddings computation on a transcription file
 
-This script will :
-* Slice embeddings with a sliding windows and compute the cosine similarity between a windows & representatives documents (also embedded).
-* Retrieve the documents of a windows if one of the documents mean similarity is above a threshold t.
-Save the result in a csv file.
+```python encode_articles.py --trs <name_file.csv> --output <directory_name> --meta_file <name_file_meta.csv> --npy_file <name_file_emb.npy> --similarity_file <name_similarity_file.csv> --threshold <float value of a threshold>```
 
-Will save the selected documents in a dedicated directory "extracted_docs", file will be named "<threshold>_<datasetfilename>_extracted_docs.csv"
+| Parameter            | Description                                                                                             |
+|----------------------|---------------------------------------------------------------------------------------------------------|
+| `--trs`              | Path to the INA JT transcription file.                                                                  |
+| `--output`           | Directory or file path where the results will be saved.                                                 |
+| `--meta_file`        | Output file containing metadata after the text is segmented into 1-minute sliding windows.              |
+| `--npy_file`         | Output file for storing the text embeddings in `.npy` format.                                           |
+| `--similarity_file`  | Output file containing similarity scores computed for each 1-minute window.                             |
+| `--threshold`        | Minimum cosine similarity used to extract batches of lines. A higher threshold selects texts more semantically similar to the reference text. |
+
+
 
 ### JT_ids.py
 For running JT_ids.py:    
@@ -39,37 +40,23 @@ Will save the following files in data/ (same directory as the dataset file):
     min_time, max_time) by channel  
 Will save the reordered dataset in data/reordered
 
+### slide.py
+For running slide.py with minimal customization :  
+```python3 slide.py --dataset <data/dataset_filnename.csv>```
 
+If you want to custom your run, you can use the following parameters :
 
-------
-### TODO regarder packages ruptures
+```python3 slide.py --dataset <data/dataset_filename.csv> --model "Lajavaness/sentence-camembert-large" --windows 8 --threshold 0.4 --sliding_type JT```
 
-# Quelques exemples
+* ```--dataset``` : the name of your INA JT dataset
+* ```--model``` : the SentenceBert model you want to use. The embedding of reference texts and dataset texts has to be a Sentence Transformer architecture for now.
+* ```--windows``` : windows parameter is the number of documents (equivalent of batches of lines here) which are taken into account when comparing with reference text
+* ```--threshold``` : threshold parameter is the minimal cosine similarity for extracting a batch of lines. The higher the threshold, the closer the selected texts will be to the reference text.
 
-### calcul des embeddings sur les 2 fichiers de transcription
+This script will :
+* Slice embeddings with a sliding windows and compute the cosine similarity between a windows & representatives documents (also embedded).
+* Retrieve the documents of a windows if one of the documents mean similarity is above a threshold t.
+Save the result in a csv file.
 
-```python
-python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v01.csv --output /home/nherve/data --meta_file trs01_meta.csv --npy_file trs01_emb.npy
-python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v02.csv --output /home/nherve/data --meta_file trs02_meta.csv --npy_file trs02_emb.npy
-```
+Will save the selected documents in a dedicated directory "extracted_docs", file will be named "<threshold>_<datasetfilename>_extracted_docs.csv"
 
-### calcul des similarités sur les 2 fichiers de transcription
-python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file nahel_sim_wiki02.csv
-
-python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs01_meta.csv --npy_file trs01_emb.npy --similarity_file titan_sim_wiki01.csv
-python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file titan_sim_wiki02.csv### TODO regarder packages ruptures
-
-# Quelques exemples
-
-### calcul des embeddings sur les 2 fichiers de transcription
-
-```python
-python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v01.csv --output /home/nherve/data --meta_file trs01_meta.csv --npy_file trs01_emb.npy
-python encode_articles.py --trs /home/nherve/data/medialex_transcriptions_vocapia_v02.csv --output /home/nherve/data --meta_file trs02_meta.csv --npy_file trs02_emb.npy
-```
-
-### calcul des similarités sur les 2 fichiers de transcription
-python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file nahel_sim_wiki02.csv
-
-python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs01_meta.csv --npy_file trs01_emb.npy --similarity_file titan_sim_wiki01.csv
-python encode_articles.py --output /rex/local/otmedia/medialex --meta_file trs02_meta.csv --npy_file trs02_emb.npy --similarity_file titan_sim_wiki02.csv

@@ -1,13 +1,21 @@
-This repo aims to extract texts from TV news transcriptions, selecting those that are semantically similar to a text describing a specific event. (The event(s) here are the death of Nahel Mazrouk and the following riots).
+This repo aims to extract relevant interventions from TV news transcriptions by selecting those that are semantically similar to a text describing a specific event. (Currently, we focus on the interventions about the death of Nahel Merzouk and the following riots).
 
-# Select the texts similar to the press articles of the day
-By running run_encode.py with the following command 
-```python3 run_encode.py``` 
-(will run encode_article.py for each day)
+### Use run_encode.py to select the news bulletins of each day depending of their similarity to the press of the same day
 
-# Select the texts similar to only one text describing the event
+With the following command : ```python3 run_encode.py```. This script will :
 
-### embeddings computation on a transcription file
+* select the bulletins transcription of one day
+* run encode_articles.py for each day, which will :
+    * calculates a one-minute sliding window, advancing line by line, resetting to zero if the channel changes.
+    * compute an embedding for each minute
+    * compute one embedding for each article of the day
+    * calculates the similarities between each one minute embedding and each article embedding
+    * if the mean of these similarities is above a (chosen) threshold, the minute is labelled as 1, if not, 0
+    * the original transcription dataset is then labelled using the minutes' labels, and saved
+* all labelled transcriptions of each days are concatenated and saved
+* an optionnal formatting is applied in case only the positive selection is needed
+
+### Use encode_article.py to select all news bulletins depending of their similarity to only one text describing the event
 
 ```python encode_articles.py --trs <name_file.csv> --output <directory_name> --meta_file <name_file_meta.csv> --npy_file <name_file_emb.npy> --similarity_file <name_similarity_file.csv> --threshold <float value of a threshold>```
 
@@ -19,7 +27,6 @@ By running run_encode.py with the following command
 | `--npy_file`         | Output file for storing the text embeddings in `.npy` format.                                           |
 | `--similarity_file`  | Output file containing similarity scores computed for each 1-minute window.                             |
 | `--threshold`        | Minimum cosine similarity used to extract batches of lines. A higher threshold selects texts more semantically similar to the reference text. |
-
 
 
 ### JT_ids.py

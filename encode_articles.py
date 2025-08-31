@@ -209,7 +209,8 @@ def process_embeddings(model, press_embeddings, args):
 def main(args):
     start = time.time()
     model = load_model()
-    # create_transcription_embeddings(model, args)
+    if args.compute_embedding :
+        create_transcription_embeddings(model, args)
     # press_embeddings = create_press_embeddings(model, args)
     # press_embeddings = create_adhoc_embeddings(model)
     press_embeddings = create_day_press_embedding(model, args)
@@ -243,6 +244,10 @@ if __name__ == "__main__":
     parser.add_argument("--threshold",
                         type = str,
                         help="similarity threshold")
+    parser.add_argument("--compute_embedding",
+                        action="store_true",
+                        help="type this param to compute embeddings for all the transcription file (warning : this can take time)"
+                    )
 
     parsed = parser.parse_args()
 

@@ -4,7 +4,9 @@ import re
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import tqdm as tqdm
 import os
-# --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path extracted_docs/02_labelledJT_nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023_Lajavaness_sentence-camembert-large.csv 
+# --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path formatted_output_from_run_encode.csv 
+# or
+# --notice_path data/tf1_annotated_notices_27_06_03_07.csv --extract_path formatted_output_from_run_encode.csv 
 
 
 def preprocess(args) :
@@ -25,7 +27,7 @@ def preprocess(args) :
     print(df['label'].value_counts())
 
     notice = notice.dropna(subset=['Durée','Heure','Description'])
-    # pas d heure de fin dans le fichier donc calcul
+    # pas d heure de fin dans le fichier de notice donc calcul
     # fin du segment = heure + duree
     notice['start'] = notice['date']+' '+notice['Heure']
     notice["start"] = pd.to_datetime(notice["start"], format='%d/%m/%Y %H:%M:%S')
@@ -67,7 +69,7 @@ def compute_overlap(row_pred, notice_corpus):
     return total_overlap.total_seconds(), total_intersections, rld 
 
 # doc extracted qui doit avoir une colonne label avec 1 si présent dans extraction et 0 sinon 
-# maybe to do faire une loop sur chaque date (groupby) plutôt que tout le dataset où y a des pas d'overlap les mauvais jours.
+# maybe to do faire une loop sur chaque date (groupby) plutôt que parcourir tout le dataset et donc noter des null pour tous les mauvais jours.
 
 def choose_df_to_overlaps(fixed_df, running_df) :
     overlap_duration = list()

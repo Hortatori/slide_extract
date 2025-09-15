@@ -4,13 +4,13 @@ import re
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import tqdm as tqdm
 import os
-# --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path formatted_output_from_run_encode.csv 
+# --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path articles/labelled_output_from_run_encode_40.csv
 # or
-# --notice_path data/tf1_annotated_notices_27_06_03_07.csv --extract_path formatted_output_from_run_encode.csv 
+# --notice_path data/tf1_annotated_notices_27_06_03_07.csv --extract_path articles/labelled_output_from_run_encode_40.csv
 
 
 def preprocess(args) :
-    # for nrv minutes output
+    # for minutes output
     if "vocapia" in args.extract_path :
         df = pd.read_csv(args.extract_path)
         df ["start"] = pd.to_datetime(df["start"], format="%d/%m/%Y %H:%M:%S")
@@ -24,8 +24,6 @@ def preprocess(args) :
     channel = notice.at[0,"ch_code"]
     if channel == 'FR2' : channel = 'France2'
     df = df[df['channel'].apply(lambda x: bool(re.search(channel, x)))]
-    print(df['label'].value_counts())
-
     notice = notice.dropna(subset=['Durée','Heure','Description'])
     # pas d heure de fin dans le fichier de notice donc calcul
     # fin du segment = heure + duree
@@ -38,13 +36,11 @@ def preprocess(args) :
     notice["end"] = notice["start"]+notice["Durée"]
     notice = notice.drop(['only_for_max_time_computation', 'datetime_str'], axis=1)
 
-    print(notice)
     return df, notice
 
 def compute_overlap(row_pred, notice_corpus):
 
     # Calcul du recouvrement pour les chevauchements détectés
-    total_overlap = pd.Timedelta(0) # pas vraiment utile, voir trompeur ? le temps de recouvrement sur l'ensemble des notices parcourues
     total_intersections = 0
     rld = {'row':[],'delta':[],'ratio_delta':[],'label':[]}
     for _, notice_c in notice_corpus.iterrows():
@@ -59,28 +55,22 @@ def compute_overlap(row_pred, notice_corpus):
 
         #detection d'un chevauchement
         if delta.total_seconds() > 0:
-            total_overlap += delta
             total_intersections += 1
             rld['row'].append(_)
             rld['delta'].append(delta)
             rld['ratio_delta'].append(delta.total_seconds()/ (row_pred['end'] - row_pred['start']).total_seconds())
             rld['label'].append(notice_c['label'])
 
-    return total_overlap.total_seconds(), total_intersections, rld 
-
-# doc extracted qui doit avoir une colonne label avec 1 si présent dans extraction et 0 sinon 
-# maybe to do faire une loop sur chaque date (groupby) plutôt que parcourir tout le dataset et donc noter des null pour tous les mauvais jours.
+    return total_intersections, rld 
 
 def choose_df_to_overlaps(fixed_df, running_df) :
-    overlap_duration = list()
     attributed_gold = list()
     # rappel : ce sont des fenêtres glissantes, donc elles se chevauchent plusieurs fois sur les memes rangs de notices
     history_n = 0
     for _, row in tqdm.tqdm(fixed_df.iterrows(), total=fixed_df.shape[0]):
 
 
-        total_overlap, intersection_n, rld = compute_overlap(row, running_df)
-        overlap_duration.append(total_overlap)
+        intersection_n, rld = compute_overlap(row, running_df)
         # attribuer une notice à chaque ligne de pred : - si un seul chevauchement, attribution | si plus d'un chevauchement : label du plus gros chevauchement | si pas de chevauchement : pas de label
         if len(rld['label']) > 1 :
             # plusieurs overlaps : récupère le label du pred row avec le plus long chevauchement. INFO : si égalité, max() prend le premier
@@ -97,30 +87,22 @@ def choose_df_to_overlaps(fixed_df, running_df) :
 
         attributed_gold.append(selected_label)
         # print(f"intersections = {intersection_n} :: {rld} :: in pred row {_}")
-    fixed_df['overlap_duration'] = overlap_duration # not a ratio, duration of total notice overlap for each doc row of one minute windows
     fixed_df['attributed_gold'] = attributed_gold
     print("nb of rows with overlaps", history_n)
     print(fixed_df)
-    # fixed_df.to_csv("test_eval.csv")
     return fixed_df
 
 def evaluation(df) :
-    print(f"nb of docs of with attributed_gold = NaN (no overlap): {df.shape} ")
-    print(df['attributed_gold'].value_counts())
-    print(df['label'].value_counts())
+    print("nb of attributed gold =\n",df['attributed_gold'].value_counts(dropna=False))
+    print("\nnb of pred label =\n",df['label'].value_counts())
     df = df.dropna(subset=['attributed_gold'])
-
-    print(f"nb of docs of  without NaN: {df.shape} ")
-    print(df['attributed_gold'].value_counts())
-    print(df['label'].value_counts())
+    print("\nattributed gold after dropping Nan of attributed gold (no interval) =\n",df['attributed_gold'].value_counts(dropna=False))
+    print("\npredicted label after dropping NaN of attributed gold (no interval)",df['label'].value_counts())
     df = df.astype({'attributed_gold' : 'int'})
-    print(df.dtypes)
     acc = accuracy_score(df['attributed_gold'], df['label'])
     f1 = f1_score(df['attributed_gold'], df['label'])
     p = precision_score(df['attributed_gold'], df['label'])
     r = recall_score(df['attributed_gold'], df['label'])
-    print(df['attributed_gold'].value_counts())
-    print(df['label'].value_counts())
     return {'acc': acc, 'f1': f1, 'p': p, 'r': r}
 
 

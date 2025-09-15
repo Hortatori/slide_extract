@@ -2,12 +2,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 #INFO : remember the time orders is not coherent : different JT are overlapping when plotting more than one channel at a time
-
-df = pd.read_csv("suite_similarite_JT_nahel_transcriptions_vocapia_26_06_2023_to_03_07_2023_Lajavaness_sentence-camembert-large.csv")
+filename = "gpt_sim.csv"
+df = pd.read_csv(filename)
 # df = pd.read_csv("sim_27_06.csv")
 if not os.path.exists("utils/plots/"):
     os.mkdir("utils/plots/")
-df["start_time"] = pd.to_datetime(df["start_time"], format = "%Y-%m-%d %H:%M:%S")
+df["start"] = pd.to_datetime(df["start"])
 print(df)
 
 for channel, group in df.groupby('channel'):

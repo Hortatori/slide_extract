@@ -2,7 +2,7 @@ This repo aims to extract relevant interventions from TV news transcriptions by 
 
 ### Use run_encode.py to select the news bulletins of each day depending of their similarity to the press of the same day
 
-With the following command : ```python3 run_encode.py```. This script will :
+With the following command : ```python3 run_encode.py --threshold <float>`. This script will :
 
 * select the bulletins transcription of one day
 * run encode_articles.py for each day, which will :
@@ -15,7 +15,7 @@ With the following command : ```python3 run_encode.py```. This script will :
 * all labelled transcriptions of each days are concatenated and saved
 * an optionnal formatting is applied in case only the positive selection is needed
 
-### Use encode_article.py to select all news bulletins depending of their similarity to only one text describing the event
+### Use encode_article.py to select all news bulletins depending of their similarity to ONE text describing the event
 
 ```python encode_articles.py --trs <name_file.csv> --output <directory_name> --meta_file <name_file_meta.csv> --npy_file <name_file_emb.npy> --similarity_file <name_similarity_file.csv> --threshold <float value of a threshold>```
 
@@ -47,23 +47,4 @@ Will save the following files in data/ (same directory as the dataset file):
     min_time, max_time) by channel  
 Will save the reordered dataset in data/reordered
 
-### slide.py
-For running slide.py with minimal customization :  
-```python3 slide.py --dataset <data/dataset_filnename.csv>```
-
-If you want to custom your run, you can use the following parameters :
-
-```python3 slide.py --dataset <data/dataset_filename.csv> --model "Lajavaness/sentence-camembert-large" --windows 8 --threshold 0.4 --sliding_type JT```
-
-* ```--dataset``` : the name of your INA JT dataset
-* ```--model``` : the SentenceBert model you want to use. The embedding of reference texts and dataset texts has to be a Sentence Transformer architecture for now.
-* ```--windows``` : windows parameter is the number of documents (equivalent of batches of lines here) which are taken into account when comparing with reference text
-* ```--threshold``` : threshold parameter is the minimal cosine similarity for extracting a batch of lines. The higher the threshold, the closer the selected texts will be to the reference text.
-
-This script will :
-* Slice embeddings with a sliding windows and compute the cosine similarity between a windows & representatives documents (also embedded).
-* Retrieve the documents of a windows if one of the documents mean similarity is above a threshold t.
-Save the result in a csv file.
-
-Will save the selected documents in a dedicated directory "extracted_docs", file will be named "<threshold>_<datasetfilename>_extracted_docs.csv"
 

@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 """
 --path_extract formatted_output_from_run_encode.csv --path_transcription data/nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv
+input is "formatted_file" as it only contain the selection of label=1 from labelled outputs
 compute duration of transcription stream for each day and each channels, then compute percentage of time about Nahel vs. total time
 """
 
@@ -60,11 +61,11 @@ def stats(args) :
     per_channels_filter_tv_ch = per_channels.filter(pl.col("channel").is_in(["ARTE","BFM_TV","C8","CNews","France2","France3","France5","FranceInfo_TV","LCI","LCP","M6","TF1","TMC"]))
     
 
-    per_channels.write_csv("TV_RADIO_stats_temps_chaines_jours.csv")
-    per_channels_filter_tv_ch.write_csv("only_TV_stats_temps_chaines_jours.csv")
+    per_channels.write_csv("TV_RADIO_stats_temps_chaines_jours_"+args.path_extract)
+    per_channels_filter_tv_ch.write_csv("only_TV_stats_temps_chaines_jours.csv"+args.path_extract)
 
-    per_day.write_csv("TV_RADIO_stats_temps_jours.csv")
-    per_day_tv.write_csv("only_TV_stats_temps_jours.csv")
+    per_day.write_csv("TV_RADIO_stats_temps_jours.csv"+args.path_extract)
+    per_day_tv.write_csv("only_TV_stats_temps_jours.csv"+args.path_extract)
     return filter_main_ch
 
 
@@ -147,15 +148,6 @@ def main(args) :
     plot_bars(df=df_stats, colors_dict=colors_dict, channels=channels)
     plot_lines(df=df_stats, colors_dict=colors_dict, channels=channels)
 
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
-        return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -4,18 +4,19 @@ from pathlib import Path
 import polars as pl
 from encode_articles import main as encode_article
 from utils.to_deliver import main as to_deliver
+import argparse
 
 # fait tourner encode_article.py en utilisant les articles du jour pour comparer avec les JT du même jour. 
 
 class Args :
-    def __init__(self, jt, article):
+    def __init__(self, jt, article,t):
         self.trs = "articles/"+jt
         self.output = "articles"
         self.meta_file = jt.split(".")[0]+"_meta.csv"
         self.similarity_file = article.split(".")[0]+"_sim.csv"
         self.npy_file = jt.split(".")[0]+".npy"
         self.otmedia = article
-        self.threshold = 0.40
+        self.threshold = t
         self.compute_embedding = None
 
 class Args_deliver :
@@ -24,8 +25,10 @@ class Args_deliver :
         self.trs = trs
         self.dirname = dirname
 
-def nasty_main() :
+def nasty_main(main_args) :
     start = time.time()
+    if not os.path.exists("articles/"):
+        os.mkdir("articles/")
     META_SCHEMA = {"":int, "channel": str, "start": pl.Datetime, "end": pl.Datetime, "duration": float, "text": str, "id": str, "created_at": str}
     concat_days = pl.DataFrame(schema=META_SCHEMA)
     EXTRACT_SCHEMA = {"channel": str, "start": pl.Datetime, "end": pl.Datetime, "start_id": int, "end_id": int, "text": str, "label": int}
@@ -34,14 +37,14 @@ def nasty_main() :
         # ---- slicing previous meta and emb method cannot be used (order is first by channel, then by time => need to recalculate on DAY files (I manually) created for this ----
         if os.path.isfile(Path("articles",article)) and os.path.isfile(Path("articles", jt)):
 
-            args = Args(jt,article)
+            args = Args(jt,article, main_args.threshold)
 
             try:
                 # run encode_article.py     => label a minute of text as 1 if it is close enough to the articles of the day
                 print(f"running encode_article with {', '.join('%s: %s' % item for item in vars(args).items())}")
                 encode_article(args)
 
-                path_extracts = Path(args.output,"nrv_extracted_docs_"+"".join(str(args.threshold).split("."))+"_"+args.otmedia.split(".")[0]+".csv")
+                path_extracts = Path(args.output,"minutes_labelled_"+"".join(str(args.threshold).split("."))+"_"+args.otmedia.split(".")[0]+".csv")
                 labelled_minutes = pl.read_csv(path_extracts, schema_overrides=EXTRACT_SCHEMA)
                 concat_label.extend(labelled_minutes)
                 # run to_deliver.py     => use indexes to retrieve lines of text instead of a sliding window of a minute
@@ -59,16 +62,21 @@ def nasty_main() :
     end = time.time()
     # NOTE : concat_label, saved as "labelled_output_from_run_encode" is still in minutes
     concat_label = concat_label.sort("channel","start")
-    concat_label.write_csv("labelled_output_from_run_encode.csv")
+    concat_label.write_csv(Path(args.output,"labelled_minutes_from_run_encode_"+"".join(str(args.threshold).split("."))+".csv"))
 
     # NOTE : concat days contains only positives labels
     concat_days = concat_days.unique("id") #dedup
     concat_days = concat_days.sort("channel", "start")
     print(concat_days)
-    concat_days.write_csv("formatted_output_from_run_encode.csv")
+    # concat_days.write_csv("formatted_output_from_run_encode_"+str(args.threshold)+".csv")
+
+    os.remove("minutes_labelled_*.csv")
+    os.remove("formatted_minutes_labelled*.csv")
 
     print(f"duration to encode and extract all articles : {end-start}")
 
 if __name__ == "__main__" :
-
-    nasty_main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--threshold', required=True, help="threshold to choose")
+    main_args = parser.parse_args()
+    nasty_main(main_args)

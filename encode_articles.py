@@ -82,7 +82,6 @@ def create_day_press_embedding(model, args):
         # f = open(Path(day_article.split(".")[0]+".npy"), "wb")
         # np.save(f, embbed_texts)
         # f.close()
-        df_article.write_csv("articles/testfilter.csv")
         logging.info(f"Processed : {otmedia_path}")
         day_article.close()
         return embbed_texts
@@ -198,11 +197,11 @@ def process_embeddings(model, press_embeddings, args):
 
                 this = pl.DataFrame({"channel": current_channel, "start": current_start, "end": current_end, "max": torch.max(similarities), "min": torch.min(similarities), "avg": torch.mean(similarities)})
                 all_similarities = all_similarities.extend(this)
-    all_similarities.write_csv(Path(args.output, args.similarity_file), separator=",", quote_char='"', quote_style='non_numeric')
+    all_similarities.write_csv(Path(args.output, args.similarity_file.split(".")+"_"+"".join(str(args.threshold).split("."))+".csv"), separator=",", quote_char='"', quote_style='non_numeric')
     if args.otmedia :
-        meta.write_csv(Path(args.output, "nrv_extracted_docs_"+"".join(str(args.threshold).split("."))+"_"+args.otmedia.split(".")[0]+".csv"), separator=",", quote_char='"', quote_style='non_numeric')
+        meta.write_csv(Path(args.output, "minutes_labelled_"+"".join(str(args.threshold).split("."))+"_"+args.otmedia.split(".")[0]+".csv"), separator=",", quote_char='"', quote_style='non_numeric')
     else :
-        meta.write_csv(Path(args.output, "nrv_extracted_docs_"+"".join(str(args.threshold).split("."))), separator=",", quote_char='"', quote_style='non_numeric')
+        meta.write_csv(Path(args.output, "minutes_labelled_"+"".join(str(args.threshold).split("."))), separator=",", quote_char='"', quote_style='non_numeric')
     # ids_write = pl.DataFrame(list(extracted_old_ids))
     # ids_write.write_csv(Path(args.output,"extracted_ids_050.csv"))
 
@@ -211,10 +210,14 @@ def main(args):
     model = load_model()
     if args.compute_embedding :
         create_transcription_embeddings(model, args)
-    # press_embeddings = create_press_embeddings(model, args)
-    # press_embeddings = create_adhoc_embeddings(model)
-    press_embeddings = create_day_press_embedding(model, args)
-    process_embeddings(model, press_embeddings, args)
+    # ref_embeddings = create_press_embeddings(model, args)
+    if args.otmedia :
+        ref_embedding = create_day_press_embedding(model, args)
+    else :
+        # presse_embeddings will be only on one text
+        ref_embedding = create_adhoc_embeddings(model)
+
+    process_embeddings(model, ref_embedding, args)
     end = time.time()
     print(f"duration : {end-start}")
 

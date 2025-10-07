@@ -5,6 +5,7 @@ import polars as pl
 from encode_articles import main as encode_article
 from utils.to_deliver import main as to_deliver
 import argparse
+import glob
 
 # fait tourner encode_article.py en utilisant les articles du jour pour comparer avec les JT du même jour. 
 
@@ -29,8 +30,11 @@ def nasty_main(main_args) :
     start = time.time()
     if not os.path.exists("articles/"):
         os.mkdir("articles/")
+    SIM_SCHEMA = {"channel": str, "start": pl.Datetime, "end": pl.Datetime, "max": float, "min": float, "avg": float}
     META_SCHEMA = {"":int, "channel": str, "start": pl.Datetime, "end": pl.Datetime, "duration": float, "text": str, "id": str, "created_at": str}
+    LABEL_SCHEMA = {"":int, "channel": str, "start": pl.Datetime, "end": pl.Datetime, "duration": float, "text": str, "id": str, "created_at": str, "label":int}
     concat_days = pl.DataFrame(schema=META_SCHEMA)
+    labelled_lines = pl.DataFrame(schema=LABEL_SCHEMA)
     EXTRACT_SCHEMA = {"channel": str, "start": pl.Datetime, "end": pl.Datetime, "start_id": int, "end_id": int, "text": str, "label": int}
     concat_label = pl.DataFrame(schema=EXTRACT_SCHEMA)
     for jt,article in [["06_27_JT.csv","06_27_otmedia.csv"],["06_28_JT.csv","06_28_otmedia.csv"],["06_29_JT.csv","06_29_otmedia.csv"],["06_30_JT.csv","06_30_otmedia.csv"],["07_01_JT.csv","07_01_otmedia.csv"],["07_02_JT.csv","07_02_otmedia.csv"],["07_03_JT.csv","07_03_otmedia.csv"]] :
@@ -57,6 +61,11 @@ def nasty_main(main_args) :
                 concat_days = concat_days.extend(_this_day_deliver)
                 print("concat all :")
                 print(concat_days)
+
+                path_output = Path(args.output,'trs_lignes_labelled_'+str(arg_deliver.extracted).split('/')[1])
+                this_day_lines_labelled = pl.read_csv(path_output, schema_overrides=META_SCHEMA)
+                labelled_lines.extend(this_day_lines_labelled)
+
             except Exception as e:
                 print(e)
     end = time.time()
@@ -68,10 +77,26 @@ def nasty_main(main_args) :
     concat_days = concat_days.unique("id") #dedup
     concat_days = concat_days.sort("channel", "start")
     print(concat_days)
-    # concat_days.write_csv("formatted_output_from_run_encode_"+str(args.threshold)+".csv")
+    concat_days.write_csv("formatted_output_from_run_encode_"+"".join(str(args.threshold).split("."))+".csv")
 
-    os.remove("minutes_labelled_*.csv")
-    os.remove("formatted_minutes_labelled*.csv")
+    # NOTE : labelled lines is the original transcription + one column label 0-1
+    labelled_lines.write_csv(Path(args.output,"labelled_lines_output_from_run_encode_"+"".join(str(args.threshold).split("."))+".csv"))
+    # similarity files
+    sim_paths = glob.glob(args.output+"/*_sim.csv")
+    sim_dfs = [pl.read_csv(f, schema_overrides=SIM_SCHEMA) for f in sim_paths]
+    if sim_dfs:
+        sim_concat = pl.concat(sim_dfs)
+    else :
+        "WARNING : no similarity files, there should be some"
+    sim_concat = sim_concat.sort("start")
+    sim_concat.write_csv(Path(args.output,"sim_from_run_encode.csv"))
+
+    _ = [os.remove(f) for f in sim_paths]
+    _ = [os.remove(f) for f in glob.glob(args.output+"/minutes_labelled_*.csv")]
+    _ = [os.remove(f) for f in glob.glob(args.output+"/formatted_minutes_labelled*.csv")]
+    _ = [os.remove(f) for f in glob.glob(args.output+"/trs_lignes_labelled_*.csv")]
+
+
 
     print(f"duration to encode and extract all articles : {end-start}")
 

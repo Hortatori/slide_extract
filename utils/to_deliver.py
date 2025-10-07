@@ -25,18 +25,21 @@ def main(args) :
     transcription["end"] = pd.to_datetime(transcription["end"], format="%d/%m/%Y %H:%M:%S")
     transcription = transcription.sort_values(by=["channel", "start"]) # orginal trs doesnt have the same indexing than used in encode_article
     transcription = transcription.reset_index(drop=True)
+    # trs_select will be a usable doc with only the references to Nahel
     trs_select = transcription[transcription.index.isin(ids_set)]
-
     # pour compléter avec les détections de mots clés des premières occurrences de l'évènement le premier jour : lignes contenant 'refus d'obtemperer' le 27/06/2023
-    output = trs_select # to comment if the following code is uncommented
-
     ## command : xan search -s start '27/06/2023' data/nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv | xan search -s text -r "\brefus\s+(de\sobtempérer|d'obtempérer|d\sobtempérer)\b" > selected_refus.csv 
-    # refus_labelled = pd.read_csv("selected_refus.csv")
-    # refus_labelled["start"] = pd.to_datetime(refus_labelled["start"], format="%d/%m/%Y %H:%M:%S")
-    # refus_labelled["end"] = pd.to_datetime(refus_labelled["end"], format="%d/%m/%Y %H:%M:%S")
-    # print(f"trs shape {trs_select.shape}, keywords shape {refus_labelled.shape}")
-    # output = pd.concat([trs_select,refus_labelled])
-    # output = output.sort_values(by=["channel", "start"])
+    refus_labelled = pd.read_csv("selected_refus.csv")
+    refus_labelled["start"] = pd.to_datetime(refus_labelled["start"], format="%d/%m/%Y %H:%M:%S")
+    refus_labelled["end"] = pd.to_datetime(refus_labelled["end"], format="%d/%m/%Y %H:%M:%S")
+    print(f"trs shape {trs_select.shape}, keywords shape {refus_labelled.shape}")
+    output = pd.concat([trs_select,refus_labelled])
+    output = output.sort_values(by=["channel", "start"])
+
+
+    # transcription will be a labelled dataset by prediction 0-1
+    transcription["label"] = transcription.index.isin(ids_set).astype(int)
+
 
     ## pour filtrer selon une selection de chaîne
 
@@ -54,8 +57,11 @@ def main(args) :
     # output = output[output['channel'].isin(channels_to_keep)]
     # output['tag'] = output['channel'].map(ch_interest)
     saving_in = Path(args.dirname,'formatted_'+str(args.extracted).split('/')[1])
-    print(f"saving in : {saving_in}")
+    print(f"saving the keywords-enriched-only-true corpus in : {saving_in}")
     output.to_csv(saving_in)
+    saving_in = Path(args.dirname,'trs_lignes_labelled_'+str(args.extracted).split('/')[1])
+    print(f"saving the labelled lines in : {saving_in}")
+    transcription.to_csv(saving_in)
 
 
 if __name__ == "__main__" :

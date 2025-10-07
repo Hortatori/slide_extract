@@ -16,18 +16,18 @@ SECONDS = 30
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
-    "input",
+    "--input",
     help="File containing the transcriptions sorted by channel and by start time",
 )
 parser.add_argument(
-    "output",
+    "--output",
     help="Name of the file created by this script",
 )
 
 
 def read_time(position):
-    return datetime.strptime(row[position], "%Y-%m-%d %H:%M:%S")
-
+    # return datetime.strptime(row[position], "%Y-%m-%d %H:%M:%S")
+    return datetime.strptime(row[position], "%d/%m/%Y %H:%M:%S")
 
 args = parser.parse_args()
 

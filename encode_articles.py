@@ -197,7 +197,7 @@ def process_embeddings(model, press_embeddings, args):
 
                 this = pl.DataFrame({"channel": current_channel, "start": current_start, "end": current_end, "max": torch.max(similarities), "min": torch.min(similarities), "avg": torch.mean(similarities)})
                 all_similarities = all_similarities.extend(this)
-    all_similarities.write_csv(Path(args.output, args.similarity_file.split(".")+"_"+"".join(str(args.threshold).split("."))+".csv"), separator=",", quote_char='"', quote_style='non_numeric')
+    all_similarities.write_csv(Path(args.output, args.similarity_file), separator=",", quote_char='"', quote_style='non_numeric')
     if args.otmedia :
         meta.write_csv(Path(args.output, "minutes_labelled_"+"".join(str(args.threshold).split("."))+"_"+args.otmedia.split(".")[0]+".csv"), separator=",", quote_char='"', quote_style='non_numeric')
     else :
@@ -214,7 +214,7 @@ def main(args):
     if args.otmedia :
         ref_embedding = create_day_press_embedding(model, args)
     else :
-        # presse_embeddings will be only on one text
+        # ref_embeddings will be only on one text
         ref_embedding = create_adhoc_embeddings(model)
 
     process_embeddings(model, ref_embedding, args)

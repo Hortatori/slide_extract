@@ -34,7 +34,7 @@ def count_time(name, dataset):
             - idx_docs_pairs (list): A list of lists, each containing the start and end indices of a session.
     """
     # applied on extracted documents
-    if name.split('_')[0] == 'output' :
+    if name.split('_')[0] == 'output' or 'formatted' :
         dataset["start"] = pd.to_datetime(dataset["start"])
         dataset["end"] = pd.to_datetime(dataset["end"])
         dataset["start"] = dataset["start"].dt.strftime("%d/%m/%Y %H:%M:%S")
@@ -215,7 +215,7 @@ def main(name):
     # à utiliser dans slide.py : if not os.path.exists(name.split("/")[0] + "/" + name.split("/")[1] + "_reordered"): pour appeller JTtime si le reorder n'existe pas encore
     reorder_pairs = {"start_id" : [],"end_id" : [],"time":[]}
     # si utilisé pour un doc de texte extraits (code trop rigide pour tout changer) 
-    if name.split('_')[0] == 'output' :
+    if name.split('_')[0] == 'output' or 'formatted' :
         name = "data/"+name
     if not os.path.exists(os.path.join("data", name.split("/")[1] + "_reordered")):
         for row in tqdm.tqdm(df_docs_pairs.itertuples(), total=len(df_docs_pairs)) : 

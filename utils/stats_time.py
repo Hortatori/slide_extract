@@ -2,6 +2,8 @@ import polars as pl
 import argparse
 from matplotlib import pyplot as plt
 import numpy as np
+import matplotlib.cm as cm
+import random
 """
 --path_extract formatted_output_from_run_encode.csv --path_transcription data/nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv
 input is "formatted_file" as it only contain the selection of label=1 from labelled outputs
@@ -61,15 +63,15 @@ def stats(args) :
     per_channels_filter_tv_ch = per_channels.filter(pl.col("channel").is_in(["ARTE","BFM_TV","C8","CNews","France2","France3","France5","FranceInfo_TV","LCI","LCP","M6","TF1","TMC"]))
     
 
-    per_channels.write_csv("TV_RADIO_stats_temps_chaines_jours_"+args.path_extract)
-    per_channels_filter_tv_ch.write_csv("only_TV_stats_temps_chaines_jours.csv"+args.path_extract)
+    per_channels.write_csv("TV_RADIO_stats_temps_chaines_jours__"+args.path_extract)
+    per_channels_filter_tv_ch.write_csv("only_TV_stats_temps_chaines_jours__"+args.path_extract)
 
-    per_day.write_csv("TV_RADIO_stats_temps_jours.csv"+args.path_extract)
-    per_day_tv.write_csv("only_TV_stats_temps_jours.csv"+args.path_extract)
-    return filter_main_ch
+    per_day.write_csv("TV_RADIO_stats_temps_jours__"+args.path_extract)
+    per_day_tv.write_csv("only_TV_stats_temps_jours__"+args.path_extract)
+    return filter_main_ch, per_channels, per_channels_filter_tv_ch
 
 
-def plot_lines(df, colors_dict, channels):
+def plot_lines(df, filename, colors_dict, channels):
     # Conversion de la colonne "day" en datetime
     # df = df.with_columns(pl.col("day").str.strptime(pl.Date, "%Y-%m-%d"))
 
@@ -88,9 +90,9 @@ def plot_lines(df, colors_dict, channels):
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig("utils/stats_time_lines.png")
+    plt.savefig(filename)
     
-def plot_bars(df, colors_dict, channels) :
+def plot_bars(df, filename, colors_dict, channels) :
 
     # df = df.with_columns(pl.col("day").str.strptime(pl.Date, "%Y-%m-%d"))
 
@@ -127,12 +129,12 @@ def plot_bars(df, colors_dict, channels) :
 
     plt.tight_layout()
     plt.show()
-    plt.savefig("utils/stats_time_bar.png")
+    plt.savefig(filename)
 
     
 
 def main(args) :
-    df_stats = stats(args)
+    filter_main_ch, per_channels, per_channels_filter_tv_ch = stats(args)
     channels = ["ARTE","BFM_TV","CNews","Europe1","France2","FranceInfo_RD","FranceInfo_TV","FranceInter","TF1"]
     colors_dict = {
         "ARTE": "maroon",          
@@ -145,8 +147,25 @@ def main(args) :
         "FranceInter": "red",
         "TF1": "slategray"
     }
-    plot_bars(df=df_stats, colors_dict=colors_dict, channels=channels)
-    plot_lines(df=df_stats, colors_dict=colors_dict, channels=channels)
+    plot_bars(df=filter_main_ch, filename = "utils/stats_time_bar_main_ch.png", colors_dict=colors_dict, channels=channels)
+    plot_lines(df=filter_main_ch, filename = "utils/stats_time_lines_main_ch.png", colors_dict=colors_dict, channels=channels)
+
+    all_channels = list(per_channels['channel'].unique())
+    cmap = plt.get_cmap("viridis", len(all_channels))  
+    colors_list = [cmap(i) for i in range(len(all_channels))]
+    colors_dict_ALL = {label: color for label, color in zip(all_channels, colors_list)}
+    random.shuffle(all_channels)
+    plot_bars(df=per_channels, filename = "utils/stats_time_bar_ALL_ch.png", colors_dict=colors_dict_ALL, channels=all_channels)
+    plot_lines(df=per_channels, filename = "utils/stats_time_lines_ALL_ch.png", colors_dict=colors_dict_ALL, channels=all_channels)
+
+    tv_channels = list(per_channels_filter_tv_ch['channel'].unique())
+    cmap = plt.get_cmap("plasma", len(tv_channels))  
+    colors_list = [cmap(i) for i in range(len(tv_channels))]
+    colors_dict_TV = {label: color for label, color in zip(tv_channels, colors_list)}
+    random.shuffle(tv_channels)
+    plot_bars(df=per_channels, filename = "utils/stats_time_bar_TV_ch.png", colors_dict=colors_dict_TV, channels=tv_channels)
+    plot_lines(df=per_channels, filename = "utils/stats_time_lines_TV_ch.png", colors_dict=colors_dict_TV, channels=tv_channels)
+
 
     
 if __name__ == "__main__":

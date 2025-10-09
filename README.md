@@ -2,7 +2,7 @@ This repo aims to extract relevant interventions from TV news transcriptions by 
 
 ### Use run_encode.py to select the news bulletins of each day depending of their similarity to the press of the same day
 
-With the following command : ```python3 run_encode.py --threshold <float>`. This script will :
+With the following command : ```python3 run_encode.py --threshold <float>```. This script will :
 
 * select the bulletins transcription of one day
 * run encode_articles.py for each day, which will :

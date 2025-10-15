@@ -37,19 +37,6 @@ def load_model():
     return model
 
 
-def create_press_embeddings(model, args):
-    logger.info(f"Loading articles from {args.otmedia}")
-    press_embeddings = []
-    with open(args.otmedia, "rt") as f:
-        for line in f:
-            article = json.loads(line)
-            text = article['document'].replace("\n", " ")
-            words = SPLIT_WORDS.split(text);
-            emb = model.encode(text, show_progress_bar=False, normalize_embeddings=True)
-            logger.info(f" ~ {article['docTime']} [{article['media']}] [{len(text)} / {len(words)}] - {article['title']}")
-            press_embeddings.append(emb)
-    return np.array(press_embeddings)
-
 def create_day_press_embedding(model, args):
     # logger.info(f"Loading days article from {otmedia_path}")
     # for  file in os.listdir(otmedia_path) :
@@ -208,7 +195,8 @@ def process_embeddings(model, press_embeddings, args):
 def main(args):
     start = time.time()
     model = load_model()
-    if args.compute_embedding :
+    if Path(args.output,args.npy_file).is_file() is False :
+        print("there is no embedding yet for this file. Computing minutes embedding of the whole transcription, this could take some time")
         create_transcription_embeddings(model, args)
     # ref_embeddings = create_press_embeddings(model, args)
     if args.otmedia :
@@ -247,10 +235,6 @@ if __name__ == "__main__":
     parser.add_argument("--threshold",
                         type = str,
                         help="similarity threshold")
-    parser.add_argument("--compute_embedding",
-                        action="store_true",
-                        help="type this param to compute embeddings for all the transcription file (warning : this can take time)"
-                    )
 
     parsed = parser.parse_args()
 

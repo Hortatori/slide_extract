@@ -1,23 +1,28 @@
+## Information extraction on TV news data
+
 This repo aims to extract relevant interventions from TV news transcriptions by selecting those that are semantically similar to a text describing a specific event. (Currently, we focus on the interventions about the death of Nahel Merzouk and the following riots).
 
-### Use run_encode.py to select the news bulletins of each day depending of their similarity to the press of the same day
+### Selection with the press as a reference
+Use run_encode.py to select the news bulletins of each day depending of their similarity to the press of the same day, with the following command : 
 
-With the following command : ```python3 run_encode.py --threshold <float>`. This script will :
+```python3 run_encode.py --threshold <float>```
+
+| Parameter            | Description                                                                                             |
+|----------------------|---------------------------------------------------------------------------------------------------------|
+| `--threshold`        | Minimum cosine similarity used to extract batches of lines. A higher threshold selects texts more semantically similar to the reference text. |                                                                  |
+
+This script will :
 
 * select the bulletins transcription of one day
-* run encode_articles.py for each day, which will :
-    * calculates a one-minute sliding window, advancing line by line, resetting to zero if the channel changes.
-    * compute an embedding for each minute
-    * compute one embedding for each article of the day
-    * calculates the similarities between each one minute embedding and each article embedding
-    * if the mean of these similarities is above a (chosen) threshold, the minute is labelled as 1, if not, 0
-    * the original transcription dataset is then labelled using the minutes' labels, and saved
+* run encode_articles.py for each day
 * all labelled transcriptions of each days are concatenated and saved
 * an optionnal formatting is applied in case only the positive selection is needed
 
-### Use encode_article.py to select all news bulletins depending of their similarity to ONE text describing the event
+### Selection with a text as a reference
 
-```python encode_articles.py --trs <name_file.csv> --output <directory_name> --meta_file <name_file_meta.csv> --npy_file <name_file_emb.npy> --similarity_file <name_similarity_file.csv> --threshold <float value of a threshold>```
+Use encode_article.py to select all news bulletins depending of their similarity to ONE text describing the event, withe following command :
+
+```python3 encode_articles.py --trs <name_file.csv> --output <directory_name> --meta_file <name_file_meta.csv> --npy_file <name_file_emb.npy> --similarity_file <name_similarity_file.csv> --threshold <float value of a threshold>```
 
 | Parameter            | Description                                                                                             |
 |----------------------|---------------------------------------------------------------------------------------------------------|
@@ -28,23 +33,22 @@ With the following command : ```python3 run_encode.py --threshold <float>`. This
 | `--similarity_file`  | Output file containing similarity scores computed for each 1-minute window.                             |
 | `--threshold`        | Minimum cosine similarity used to extract batches of lines. A higher threshold selects texts more semantically similar to the reference text. |
 
+This script will :
+* calculates a one-minute sliding window, advancing line by line, resetting to zero if the channel changes.
+* compute an embedding for each minute
+* compute one embedding for each article of the day
+* calculates the similarities between each one minute embedding and each article embedding
+* if the mean of these similarities is above a (chosen) threshold, the minute is labelled as 1, if not, 0
+* the original transcription dataset is then labelled using the minutes' labels, and saved
 
-### JT_ids.py
-For running JT_ids.py:    
-```python3 JT_ids.py --dataset <data/dataset_filnename.csv>```  
-Produces batch of news by gathering documents lines : if the end time of the record line is equal to the start time of the following record line, we consider they belong to the same batch.
-* compute number of lines for each news "session" (JT)
-* compute duration of each news session
-* reorder JT session by time and save the reordered dataset.
-* save index of the beginning and end of each session (to be used in future versions of slide.py)
-* compute statistics for each channel of news
+## Evaluation
 
-Will save the following files in data/ (same directory as the dataset file):  
-- "idx_docs_pairs_<name>": indexes pairs of beginning and ending of each news bulletin, reordered by time
-- "line_<name>": the number of lines by channel
-- "time_<name>": the number of seconds by channel
-- "stats_<name>": the statistics (nb_JTs, nb_lines, total time, avg time,
-    min_time, max_time) by channel  
-Will save the reordered dataset in data/reordered
+Attribute a gold value for each minute depending of the overlap with annotated intervals, then compute evaluation scores between prediction label and attributed gold.
 
+```--gold_path <directory> --extract_path <path>```
+
+| Parameter            | Description                                                                                             |
+|----------------------|---------------------------------------------------------------------------------------------------------|
+| `--gold_path`        | Directory where are all annotated files                                                                 |
+| `--extract_path`     | Directory or file path where are prediction (labelled minutes by encode_articles).                      |
 

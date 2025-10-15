@@ -4,39 +4,46 @@ import re
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import tqdm as tqdm
 import os
-# --notice_path data/fr2_annotated_notices_27_06_03_07.csv --extract_path articles/labelled_output_from_run_encode_40.csv
+from pathlib import Path
+# --gold_path gold_annotated_files --extract_path articles/labelled_minutes_from_run_encode_040.csv
 # or
-# --notice_path data/tf1_annotated_notices_27_06_03_07.csv --extract_path articles/labelled_output_from_run_encode_40.csv
+# --gold_path data/tf1_annotated_notices_27_06_03_07.csv --extract_path articles/labelled_minutes_from_run_encode_040.csv
 
 
-def preprocess(args) :
-    # for minutes output
-    if "vocapia" in args.extract_path :
-        df = pd.read_csv(args.extract_path)
-        df ["start"] = pd.to_datetime(df["start"], format="%d/%m/%Y %H:%M:%S")
-        df["end"] = pd.to_datetime(df["end"], format="%d/%m/%Y %H:%M:%S")
-    else:
-        df = pd.read_csv(args.extract_path, dtype = {"channel": str, "start": str, "end": str , "start_id": int, "end_id": int, "text": str, "label": int})
-        df ["start"] = pd.to_datetime(df["start"])
-        df["end"] = pd.to_datetime(df["end"])
-    notice = pd.read_csv(args.notice_path)
-    # filter docs with the notice channel
-    channel = notice.at[0,"ch_code"]
-    if channel == 'FR2' : channel = 'France2'
-    df = df[df['channel'].apply(lambda x: bool(re.search(channel, x)))]
-    notice = notice.dropna(subset=['Durée','Heure','Description'])
-    # pas d heure de fin dans le fichier de notice donc calcul
-    # fin du segment = heure + duree
-    notice['start'] = notice['date']+' '+notice['Heure']
-    notice["start"] = pd.to_datetime(notice["start"], format='%d/%m/%Y %H:%M:%S')
-    notice["Durée"] = pd.to_timedelta(notice["Durée"])
-    notice["only_for_max_time_computation"] = notice["start"]+notice["Durée"]
-    print(f"sur le total des jours, minimum heure { notice['start'].min()} :: maximum heure {notice['only_for_max_time_computation'].max()}")
-    notice['datetime_str'] = notice['date'].astype(str) + ' ' + notice['Heure'].astype(str)
-    notice["end"] = notice["start"]+notice["Durée"]
-    notice = notice.drop(['only_for_max_time_computation', 'datetime_str'], axis=1)
+def preprocess(gold_path) :
+    gold_df = pd.read_csv(gold_path)
+    # if gold is from INA notices
+    if "notice" in str(gold_path) :
+        # filter docs with the notice channel
+        if gold_df.at[0,"ch_code"] == "FR2" : 
+            gold_df["channel"] = "France2"
+        else :
+            gold_df["channel"] = gold_df["ch_code"]
+        gold_df = gold_df.dropna(subset=["Durée","Heure","Description"])
+        # pas d heure de fin dans le fichier de notice donc calcul
+        # fin du segment = heure + duree
+        gold_df["start"] = gold_df["date"]+" "+gold_df["Heure"]
+        gold_df["start"] = pd.to_datetime(gold_df["start"], format="%d/%m/%Y %H:%M:%S", dayfirst=True)
+        gold_df["duration"] = pd.to_timedelta(gold_df["Durée"])
+        gold_df["end"] = gold_df["start"]+gold_df["duration"]
+        gold_df["text"] = gold_df["Description"]
+        gold_df = gold_df.drop(["ch_code","datdifsec","date","Heure","Durée","ti","chap","de","Description"], axis=1)
+    else :
+        # regroup same labels in batches 
+        #channel = gold_df.at[0,"channel"]
+        # df = df[df['channel'].apply(lambda x: bool(re.search(channel, x)))]
+        # labelled lines turned into larger segments for evaluation 
+        gold_df = gold_df[["channel", "start", "end", "duration", "text", "label"]]
+        gold_df['duration'] = pd.to_timedelta(gold_df['duration'], unit='s')
+        gold_df["portion_id"] = (gold_df["label"].shift() != gold_df["label"]).cumsum()
+        agg_gold_df = gold_df.groupby(["channel", "label", "portion_id"], as_index=False).agg(start=("start", "first"),end=("end", "last"),duration=("duration", "sum"),text=("text", " ".join))
+        agg_gold_df = agg_gold_df.sort_values("portion_id")
+        gold_df = agg_gold_df.drop(columns=["portion_id"])
+        gold_df["end"] = pd.to_datetime(gold_df["end"], dayfirst=True)
+        gold_df["start"] = pd.to_datetime(gold_df["start"], dayfirst=True)
 
-    return df, notice
+    return gold_df
+
 
 def compute_overlap(row_pred, notice_corpus):
 
@@ -63,6 +70,7 @@ def compute_overlap(row_pred, notice_corpus):
 
     return total_intersections, rld 
 
+
 def choose_df_to_overlaps(fixed_df, running_df) :
     attributed_gold = list()
     # rappel : ce sont des fenêtres glissantes, donc elles se chevauchent plusieurs fois sur les memes rangs de notices
@@ -70,7 +78,7 @@ def choose_df_to_overlaps(fixed_df, running_df) :
     for _, row in tqdm.tqdm(fixed_df.iterrows(), total=fixed_df.shape[0]):
 
 
-        intersection_n, rld = compute_overlap(row, running_df)
+        total_intersection, rld = compute_overlap(row, running_df)
         # attribuer une notice à chaque ligne de pred : - si un seul chevauchement, attribution | si plus d'un chevauchement : label du plus gros chevauchement | si pas de chevauchement : pas de label
         if len(rld['label']) > 1 :
             # plusieurs overlaps : récupère le label du pred row avec le plus long chevauchement. INFO : si égalité, max() prend le premier
@@ -87,18 +95,15 @@ def choose_df_to_overlaps(fixed_df, running_df) :
 
         attributed_gold.append(selected_label)
         # print(f"intersections = {intersection_n} :: {rld} :: in pred row {_}")
-    fixed_df['attributed_gold'] = attributed_gold
-    print("nb of rows with overlaps", history_n)
-    print(fixed_df)
+    fixed_df["attributed_gold"] = attributed_gold
+    fixed_df = fixed_df.dropna(subset=["attributed_gold"])
+    print("nb of rows attributed", history_n)
     return fixed_df
 
+
 def evaluation(df) :
-    print("nb of attributed gold =\n",df['attributed_gold'].value_counts(dropna=False))
-    print("\nnb of pred label =\n",df['label'].value_counts())
-    df = df.dropna(subset=['attributed_gold'])
-    print("\nattributed gold after dropping Nan of attributed gold (no interval) =\n",df['attributed_gold'].value_counts(dropna=False))
-    print("\npredicted label after dropping NaN of attributed gold (no interval)",df['label'].value_counts())
     df = df.astype({'attributed_gold' : 'int'})
+    df = df.astype({'label' : 'int'})
     acc = accuracy_score(df['attributed_gold'], df['label'])
     f1 = f1_score(df['attributed_gold'], df['label'])
     p = precision_score(df['attributed_gold'], df['label'])
@@ -107,19 +112,35 @@ def evaluation(df) :
 
 
 def main(args) :
-    df, notice = preprocess(args)
-    output_labeled = choose_df_to_overlaps(fixed_df = df, running_df = notice)
-    scores = evaluation(output_labeled)
-    scores["gold_file"] = args.notice_path
+    pd.options.mode.copy_on_write = True
+    # for minutes output
+    df = pd.read_csv(args.extract_path, dtype = {"channel": str, "start": str, "end": str , "start_id": int, "end_id": int, "text": str, "label": int})
+    df ["start"] = pd.to_datetime(df["start"])
+    df["end"] = pd.to_datetime(df["end"])
+    all = [preprocess(Path(args.gold_path,f)) for f in os.listdir(args.gold_path)] 
+    concat_gold=pd.concat(all, ignore_index=True)
+    output_labelled = pd.DataFrame(columns=df.columns)
+    for channel, df_gold_one_channel in concat_gold.groupby(["channel"]) :
+        print(f"attrbuting gold label to minutes for channel {channel[0]}")
+        df_channel = df[df["channel"] == channel[0]]
+        this_channel_labeled = choose_df_to_overlaps(fixed_df = df_channel, running_df = df_gold_one_channel)
+        output_labelled = pd.concat([output_labelled,this_channel_labeled], ignore_index=True)
+    scores = evaluation(output_labelled)
+    scores["gold_file"] = args.gold_path
     scores["pred_file"] = args.extract_path
     print(scores)
     output = pd.DataFrame([scores])
-    output.to_csv(os.path.join("eval_outputs","_".join([args.extract_path.split("/")[1].split(".")[0],"vs",args.notice_path.split("/")[1].split(".")[0],".csv"])))
+    output.to_csv(os.path.join("eval_outputs","_".join(["global_eval",args.extract_path.split("/")[1].split(".")[0],"VS","".join(args.gold_path.split("/")),".csv"])))
+
+    # scores par chaines
+    for channel, df_channel in output_labelled.groupby(["channel"]) :
+        scores = evaluation(df_channel)
+        print(f"for {channel[0]} :: {scores}\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--notice_path', required=True, help="path and file of notice")
+    parser.add_argument('--gold_path', required=True, help="path and file of notice")
     parser.add_argument('--extract_path', required=True, help="path and file of extracted docs")
     args = parser.parse_args()
 

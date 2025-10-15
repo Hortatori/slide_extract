@@ -18,7 +18,6 @@ class Args :
         self.npy_file = jt.split(".")[0]+".npy"
         self.otmedia = article
         self.threshold = t
-        self.compute_embedding = None
 
 class Args_deliver :
     def __init__(self, extracted, trs, dirname):

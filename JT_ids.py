@@ -9,6 +9,27 @@ import tqdm
 import shutil
 import re
 
+"""
+For running JT_ids.py:    
+```python3 JT_ids.py --dataset <data/dataset_filnename.csv>```  
+Produces batch of news by gathering documents lines : if the end time of the record line is equal to the start time of the following record line, we consider they belong to the same batch.
+* compute number of lines for each news "session" (JT)
+* compute duration of each news session
+* reorder JT session by time and save the reordered dataset.
+* save index of the beginning and end of each session (to be used in future versions of slide.py)
+* compute statistics for each channel of news
+
+Will save the following files in data/ (same directory as the dataset file):  
+- "idx_docs_pairs_<name>": indexes pairs of beginning and ending of each news bulletin, reordered by time
+- "line_<name>": the number of lines by channel
+- "time_<name>": the number of seconds by channel
+- "stats_<name>": the statistics (nb_JTs, nb_lines, total time, avg time,
+    min_time, max_time) by channel  
+Will save the reordered dataset in data/reordered
+"""
+
+
+
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument(
     "--dataset", type=str, required=True, help="dataset to pass in JT_ids.py"

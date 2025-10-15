@@ -119,9 +119,9 @@ def plot_bars(df, filename, colors_dict, channels) :
         ax.bar(x + i * bar_width, values, width=bar_width, label=channel, color=colors_dict[channel])
 
     # Mise en forme
-    ax.set_title("Proportion de temps dédié à Nahel par chaîne et par jour")
-    ax.set_xlabel("Jour")
-    ax.set_ylabel("Pourcentage (%)")
+    #ax.set_title("Proportion de temps dédié à Nahel par chaîne et par jour")
+    ax.set_xlabel("Jour", fontsize=18)
+    ax.set_ylabel("Pourcentage", fontsize=18)
     ax.set_xticks(x + 0.8 / 2 - bar_width / 2)  # centrer les ticks
     ax.set_xticklabels([str(d) for d in days], rotation=45)
     ax.legend(title="Chaîne")
@@ -135,20 +135,13 @@ def plot_bars(df, filename, colors_dict, channels) :
 
 def main(args) :
     filter_main_ch, per_channels, per_channels_filter_tv_ch = stats(args)
-    channels = ["ARTE","BFM_TV","CNews","Europe1","France2","FranceInfo_RD","FranceInfo_TV","FranceInter","TF1"]
-    colors_dict = {
-        "ARTE": "maroon",          
-        "BFM_TV": "yellowgreen",       
-        "CNews": "blue",          
-        "Europe1": "darkturquoise",       
-        "France2": "gold",        
-        "FranceInfo_RD": "darkgoldenrod",
-        "FranceInfo_TV": "orange",
-        "FranceInter": "red",
-        "TF1": "slategray"
-    }
-    plot_bars(df=filter_main_ch, filename = "utils/stats_time_bar_main_ch.png", colors_dict=colors_dict, channels=channels)
-    plot_lines(df=filter_main_ch, filename = "utils/stats_time_lines_main_ch.png", colors_dict=colors_dict, channels=channels)
+    main_channels = ["BFM_TV","CNews","Europe1","France2","FranceInfo_TV","FranceInter","TF1"]
+    cmap = plt.get_cmap("viridis", len(main_channels))  
+    colors_list = [cmap(i) for i in range(len(main_channels))]
+    colors_dict_MAIN = {label: color for label, color in zip(main_channels, colors_list)}
+    random.shuffle(main_channels)
+    plot_bars(df=filter_main_ch, filename = "utils/stats_time_bar_main_ch.png", colors_dict=colors_dict_MAIN, channels=main_channels)
+    plot_lines(df=filter_main_ch, filename = "utils/stats_time_lines_main_ch.png", colors_dict=colors_dict_MAIN, channels=main_channels)
 
     all_channels = list(per_channels['channel'].unique())
     cmap = plt.get_cmap("viridis", len(all_channels))  

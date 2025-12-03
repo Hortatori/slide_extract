@@ -7,8 +7,7 @@ import os
 from pathlib import Path
 # --gold_path gold_annotated_files --extract_path articles/labelled_minutes_from_run_encode_040.csv
 # or
-# --gold_path data/tf1_annotated_notices_27_06_03_07.csv --extract_path articles/labelled_minutes_from_run_encode_040.csv
-
+# --gold_path gold_annotated_files/ --extract_path data/label_keywords_nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv 
 
 def preprocess(gold_path) :
     gold_df = pd.read_csv(gold_path)

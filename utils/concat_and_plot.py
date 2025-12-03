@@ -54,7 +54,6 @@ for pred,name in zip([par_article, par_txt_unique],["par_article","par_texte_uni
 
 
 # comparaison résumé vs presse selon threshold pour chaque type evaluation
-# pour article : need  pour justifier le choix du seuil vitef
 #baseline = keys_ex.groupby("pred_file")[["acc", "f1", "p", "r"]].mean().round(2).reset_index()
 global_par_article = [i for i in par_article if (i["gold_file"] == "gold_annotated_files").all() or (i["gold_file"] == "gold_annotated_files/").all()]
 global_par_txt_unique = [i for i in par_txt_unique if (i["gold_file"] == "gold_annotated_files").all() or (i["gold_file"] == "gold_annotated_files/").all()]
@@ -81,6 +80,3 @@ for i in [['Accuracy', 'acc'], ['F1 Score', 'f1'], ['Precision', 'p'], ['Recall'
     # Sauvegarde des graphs avec nom de chaines
     plt.savefig("graphs/"+i[1]+"_articleVSunique.png", dpi=300)
     plt.show()
-
-# comparaison résumé VS presse pour chaque eval (bars) avec le meilleur threshold
-# à coder après décision meilleur threshold

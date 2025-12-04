@@ -38,9 +38,6 @@ def load_model():
 
 
 def create_day_press_embedding(model, args):
-    # logger.info(f"Loading days article from {otmedia_path}")
-    # for  file in os.listdir(otmedia_path) :
-    #     file = os.path.join(otmedia_path, file)
     otmedia_path = Path(args.output, args.otmedia)
     # Liste de mots ou regex
     re_select = [r"(?i)jeune[s]?\sconducteur[s]?", r"(?i)affrontement[s]", r"(?i)\brefus\s+(de\sobtempérer|d'obtempérer|d\sobtempérer)\b", r"(?i)(é|e)meute[s]?" ,r"(?i)(é|e)meutier[s]?",
@@ -65,10 +62,6 @@ def create_day_press_embedding(model, args):
         embbed_texts = model.encode(
             text, show_progress_bar=True, normalize_embeddings = True
         )
-        #TODO necessaire de save npy? voir la taille des articles filtrés
-        # f = open(Path(day_article.split(".")[0]+".npy"), "wb")
-        # np.save(f, embbed_texts)
-        # f.close()
         logging.info(f"Processed : {otmedia_path}")
         day_article.close()
         return embbed_texts
@@ -88,7 +81,7 @@ def create_adhoc_embeddings(model):
     "Mais cette réponse musclée n’a pas calmé tout de suite la situation. Au contraire, beaucoup ont vu ces mesures comme une preuve supplémentaire que l’État répond toujours par la répression plutôt que d’essayer de comprendre les causes profondes du problème. Des élus et des sociologues ont rappelé que ce type d’émeutes éclate régulièrement en France après des bavures policières, comme en 2005 après la mort de Zyed et Bouna à Clichy-sous-Bois. À l’époque, trois semaines de violences avaient mis le pays sous tension.",
     "Sur les réseaux sociaux, les images des affrontements ont tourné en boucle, et les débats ont été très polarisés. D’un côté, certains dénonçaient l’attitude de la police et rappelaient que ces émeutes étaient un cri de désespoir de jeunes qui ne se sentent pas écoutés. De l’autre, certains insistaient sur les dégâts causés et demandaient un retour à l’ordre rapide, dénonçant des actes de casseurs sans lien direct avec la mort de Nahel.",
     "Au final, ces violences urbaines ont mis en lumière un problème plus profond : la fracture entre une partie de la population et les institutions, notamment la police. Tant que ces tensions ne seront pas prises en compte avec des réformes concrètes, il y a fort à parier que ce genre d’explosion sociale se reproduira.",
-]
+]   
     # emb = [model.encode(text, show_progress_bar=False, normalize_embeddings=True)]
     # return np.array(emb)
     emb = model.encode(text, show_progress_bar=False, normalize_embeddings=True)
@@ -147,7 +140,7 @@ def create_transcription_embeddings(model, args):
     f.close()
 
 
-def process_embeddings(model, press_embeddings, args):
+def process_embeddings(model, reference_embeddings, args):
     meta = Path(args.output, args.meta_file)
     embeddings = Path(args.output, args.npy_file)
 
@@ -171,7 +164,7 @@ def process_embeddings(model, press_embeddings, args):
                 current_start = current_row["start"]
                 current_end = current_row["end"]
                 current_channel = current_row["channel"]
-                similarities = model.similarity(ft_emb, press_embeddings)
+                similarities = model.similarity(ft_emb, reference_embeddings)
                 if torch.mean(similarities) > float(args.threshold) :
                     id_list = range(current_row["start_id"], current_row["end_id"])
                     extracted_old_ids.update(id_list)
@@ -198,7 +191,6 @@ def main(args):
     if Path(args.output,args.npy_file).is_file() is False :
         print("there is no embedding yet for this file. Computing minutes embedding of the whole transcription, this could take some time")
         create_transcription_embeddings(model, args)
-    # ref_embeddings = create_press_embeddings(model, args)
     if args.otmedia :
         ref_embedding = create_day_press_embedding(model, args)
     else :

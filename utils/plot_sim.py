@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 
 # python utils/plot_sim.py --filepath articles/sim_from_run_encode.csv --output 7days_test__plot_sim.png
-# python utils/plot_sim.py --filepath matrix/gpt_sim.csv --output 7days_test_gpt_plot_sim.png
+# python utils/plot_sim.py --filepath summaries/gpt_sim.csv --output 7days_test_gpt_plot_sim.png
 
 def main(args):
     filepath = args.filepath

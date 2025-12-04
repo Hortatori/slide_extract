@@ -29,8 +29,8 @@ def encode_keywords(model, keywords):
     return vectors
 
 def load_X(path, model, data, saving_path):
-    if not os.path.exists("matrix/"):
-        os.mkdir("matrix/")
+    if not os.path.exists("summaries/"):
+        os.mkdir("summaries/")
 
     if os.path.exists(path + ".pt"):
         print("embedding already computed, loading from ", path + ".pt")
@@ -72,7 +72,7 @@ class JT_sliding():
 def main(args):
 
     begin_tim = time.time()
-    matrix_path = os.path.join("matrix", args.dataset.replace(".csv", "").split("/")[-1]+"_"+args.model_name.replace("/", "_"))
+    summaries_path = os.path.join("summaries", args.dataset.replace(".csv", "").split("/")[-1]+"_"+args.model_name.replace("/", "_"))
 
     # checking if reordering and JT batching has been done, if not, call JTtime
     if not os.path.exists(args.dataset.split("/")[0] + "/reordered/" + args.dataset.split("/")[1]):
@@ -92,7 +92,7 @@ def main(args):
     model = SentenceTransformer(args.model_name)
     truncation = int(model.max_seq_length) - 2
     model.max_seq_length = truncation
-    embedded_data = load_X(matrix_path, model, data, saving_path)
+    embedded_data = load_X(summaries_path, model, data, saving_path)
     cuda0 = torch.device('cuda:0')
     embedded_data = embedded_data.to(cuda0)
     keywords_embedded = encode_keywords(model, args.keywords)

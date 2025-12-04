@@ -1,5 +1,5 @@
 # LOCAL DIRECTORIES
-matrix/*
+summaries/*
 extracted_docs/*
 archives_other_thresholds/*
 .venv/*

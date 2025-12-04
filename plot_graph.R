@@ -40,7 +40,7 @@ plot_dir <- file.path(root_dir, "plots")
 # sim_file_02 <- file.path(root_dir, "nahel_sim_wiki02.csv")
 # prefix <- "wiki"
 
-sim_file <- file.path(root_dir, "matrix/nahel_sim_wiki.csv")
+sim_file <- file.path(root_dir, "summaries/nahel_sim_wiki.csv")
 # sim_file_01 <- file.path(root_dir, "titan_sim_wiki01.csv")
 # sim_file_02 <- file.path(root_dir, "titan_sim_wiki02.csv")
 prefix <- "nahel"

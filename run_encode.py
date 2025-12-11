@@ -6,6 +6,7 @@ from encode_articles import main as encode_article
 from utils.to_deliver import main as to_deliver
 import argparse
 import glob
+from datetime import datetime, timedelta
 
 # fait tourner encode_article.py en utilisant les articles du jour pour comparer avec les JT du même jour. 
 
@@ -36,8 +37,9 @@ def nasty_main(main_args) :
     labelled_lines = pl.DataFrame(schema=LABEL_SCHEMA)
     EXTRACT_SCHEMA = {"channel": str, "start": pl.Datetime, "end": pl.Datetime, "start_id": int, "end_id": int, "text": str, "label": int}
     concat_label = pl.DataFrame(schema=EXTRACT_SCHEMA)
+    # snippet slicing serait là, avec main_args.trs_file et main_args.article_file
     for jt,article in [["06_27_JT.csv","06_27_otmedia.csv"],["06_28_JT.csv","06_28_otmedia.csv"],["06_29_JT.csv","06_29_otmedia.csv"],["06_30_JT.csv","06_30_otmedia.csv"],["07_01_JT.csv","07_01_otmedia.csv"],["07_02_JT.csv","07_02_otmedia.csv"],["07_03_JT.csv","07_03_otmedia.csv"]] :
-        # ---- slicing previous meta and emb method cannot be used (order is first by channel, then by time => need to recalculate on DAY files (I manually) created for this ----
+        # ---- slicing previous meta and emb method cannot be used (order is first by channel, then by time => need to recalculate on DAY files (I manually) created for this ----    
         if os.path.isfile(Path("articles",article)) and os.path.isfile(Path("articles", jt)):
 
             args = Args(jt,article, main_args.threshold)
@@ -99,8 +101,43 @@ def nasty_main(main_args) :
 
     print(f"duration to encode and extract all articles : {end-start}")
 
+def trs_slicing_by_day(main_args) :
+    # problem pour debug : risque de recalculer touuut l'embedding des transcriptions. à checker avant de débugger.
+    articles = pl.read_csv(main_args.articles)
+    trs = pl.read_csv(main_args.trs, separator=",", quote_char='"')
+
+    date_debut = datetime.strptime(main_args.start, "%Y-%m-%d").date()
+    date_fin = datetime.strptime(main_args.end, "%Y-%m-%d").date()    
+    jours = []    
+    courant = date_debut
+    while courant <= date_fin:
+        jours.append(courant.strftime("%Y-%m-%d"))
+        courant += timedelta(days=1)
+
+    presse_par_jour = {}
+        # fail to compare timezones : https://github.com/pola-rs/polars/issues/21362
+        # ok même si dates confusantes,
+        # appliquer aussi sur les JTs, qui ont un format d/m/Y
+        # saves par jour
+    for jour in jours :
+        mask = pl.col("docTime").str.contains(jour, literal=True)
+        presse_par_jour[jour] = articles.filter(mask)
+
+
+    [print(i, "\n", presse_par_jour[i]) for i in presse_par_jour]
+    jts_par_jour = {}
+    for jour in jours :
+        mask = pl.col("start").str.contains(jour, literal=True)
+        jts_par_jour[jour] = trs.filter(mask)
+    [print(i, "\n", jts_par_jour[i]) for i in jts_par_jour]
+
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument('--threshold', required=True, help="threshold to choose")
+    parser.add_argument('--trs', required=True, help="transcription file")
+    parser.add_argument('--articles', required=True, help="articles file")
+    parser.add_argument('--start', type=lambda s: datetime.datetime.strptime(s, '%d-%m-%Y'), required=True, help="beginning datetime format = day-month-year")
+    parser.add_argument('--end', type=lambda s: datetime.datetime.strptime(s, '%d-%m-%Y'), required=True, help="ending datetime format = day-month-year")
+
     main_args = parser.parse_args()
     nasty_main(main_args)

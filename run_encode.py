@@ -9,7 +9,7 @@ import glob
 from datetime import datetime, timedelta
 
 # fait tourner encode_article.py en utilisant les articles du jour pour comparer avec les JT du même jour. 
-
+#--threshold 0.30 --trs data/nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv --articles data/otmedia_nahel_from_json_2706_0306.csv --start 27-06-2023 --end 29-06-2023
 class Args :
     def __init__(self, jt, article,t):
         self.trs = "articles/"+jt
@@ -37,7 +37,9 @@ def nasty_main(main_args) :
     labelled_lines = pl.DataFrame(schema=LABEL_SCHEMA)
     EXTRACT_SCHEMA = {"channel": str, "start": pl.Datetime, "end": pl.Datetime, "start_id": int, "end_id": int, "text": str, "label": int}
     concat_label = pl.DataFrame(schema=EXTRACT_SCHEMA)
-    # snippet slicing serait là, avec main_args.trs_file et main_args.article_file
+    # snippet slicing serait là, avec main_args.trs_file et main_args.article_file en parametres
+    trs_slicing_by_day(main_args)
+'''
     for jt,article in [["06_27_JT.csv","06_27_otmedia.csv"],["06_28_JT.csv","06_28_otmedia.csv"],["06_29_JT.csv","06_29_otmedia.csv"],["06_30_JT.csv","06_30_otmedia.csv"],["07_01_JT.csv","07_01_otmedia.csv"],["07_02_JT.csv","07_02_otmedia.csv"],["07_03_JT.csv","07_03_otmedia.csv"]] :
         # ---- slicing previous meta and emb method cannot be used (order is first by channel, then by time => need to recalculate on DAY files (I manually) created for this ----    
         if os.path.isfile(Path("articles",article)) and os.path.isfile(Path("articles", jt)):
@@ -100,44 +102,43 @@ def nasty_main(main_args) :
 
 
     print(f"duration to encode and extract all articles : {end-start}")
-
+'''
 def trs_slicing_by_day(main_args) :
-    # problem pour debug : risque de recalculer touuut l'embedding des transcriptions. à checker avant de débugger.
-    articles = pl.read_csv(main_args.articles)
-    trs = pl.read_csv(main_args.trs, separator=",", quote_char='"')
+    # problem pour debug global : risque de recalculer touuut l'embedding des transcriptions. à checker avant de débugger l'ensemble de la pipeline.
+    article_sch = {'docTime':pl.Datetime, "media":str, "title":str, 'text':str}
+    articles = pl.read_csv(main_args.articles, schema_overrides=article_sch)
+    trs = pl.read_csv(main_args.trs, separator=",", quote_char='"', schema_overrides={"":int, "channel": str, "start": pl.Datetime, "end": pl.Datetime, "duration": float, "text": str, "id": str, "created_at": str})
 
-    date_debut = datetime.strptime(main_args.start, "%Y-%m-%d").date()
-    date_fin = datetime.strptime(main_args.end, "%Y-%m-%d").date()    
+    date_debut = main_args.start
+    date_fin = main_args.end
     jours = []    
     courant = date_debut
+
     while courant <= date_fin:
-        jours.append(courant.strftime("%Y-%m-%d"))
+        jours.append(courant.date())
         courant += timedelta(days=1)
 
-    presse_par_jour = {}
-        # fail to compare timezones : https://github.com/pola-rs/polars/issues/21362
-        # ok même si dates confusantes,
-        # appliquer aussi sur les JTs, qui ont un format d/m/Y
-        # saves par jour
+    # découpe transcription et articles par jour + les écrit en csv
     for jour in jours :
-        mask = pl.col("docTime").str.contains(jour, literal=True)
-        presse_par_jour[jour] = articles.filter(mask)
+        mask = pl.col("docTime").dt.date() == jour
+        this_day_articles = articles.filter(mask)
+        print(this_day_articles)
+        print(jour.strftime("%Y_%m_%d_otmedia.csv"))
+        this_day_articles.write_csv(Path("articles",jour.strftime("%Y_%m_%d_otmedia.csv")))
 
-
-    [print(i, "\n", presse_par_jour[i]) for i in presse_par_jour]
-    jts_par_jour = {}
-    for jour in jours :
-        mask = pl.col("start").str.contains(jour, literal=True)
-        jts_par_jour[jour] = trs.filter(mask)
-    [print(i, "\n", jts_par_jour[i]) for i in jts_par_jour]
+        mask = pl.col("start").dt.date() == jour
+        this_day_jts = trs.filter(mask)
+        print(this_day_jts)
+        print(jour.strftime("%Y_%m_%d_JT.csv"))
+        this_day_jts.write_csv(Path("articles",jour.strftime("%Y_%m_%d_JT.csv")))
 
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
     parser.add_argument('--threshold', required=True, help="threshold to choose")
     parser.add_argument('--trs', required=True, help="transcription file")
     parser.add_argument('--articles', required=True, help="articles file")
-    parser.add_argument('--start', type=lambda s: datetime.datetime.strptime(s, '%d-%m-%Y'), required=True, help="beginning datetime format = day-month-year")
-    parser.add_argument('--end', type=lambda s: datetime.datetime.strptime(s, '%d-%m-%Y'), required=True, help="ending datetime format = day-month-year")
+    parser.add_argument('--start', type=lambda s: datetime.strptime(s, '%d-%m-%Y'), required=True, help="beginning datetime format = day-month-year")
+    parser.add_argument('--end', type=lambda s: datetime.strptime(s, '%d-%m-%Y'), required=True, help="ending datetime format = day-month-year")
 
     main_args = parser.parse_args()
     nasty_main(main_args)

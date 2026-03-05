@@ -206,7 +206,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--otmedia",
                         type = str,
-                        help = "Path to VSD json file")
+                        help = "Path to CSV press file")
     parser.add_argument("--trs",
                         type = str,
                         help = "Path to CSV transcription file")

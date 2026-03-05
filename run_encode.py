@@ -9,7 +9,7 @@ import glob
 from datetime import datetime, timedelta
 
 # fait tourner encode_article.py en utilisant les articles du jour pour comparer avec les JT du même jour. 
-#--threshold 0.30 --trs data/nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv --articles data/otmedia_nahel_from_json_2706_0306.csv --start 27-06-2023 --end 29-06-2023
+#--threshold 0.30 --trs data/nahel_transcriptions_vocapia_27_06_2023_to_03_07_2023.csv --articles data/otmedia_nahel_from_json_2706_0306.csv --start 27-06-2023 --end 03-07-2023
 class Args :
     def __init__(self, jt, article,t):
         self.trs = "articles/"+jt
@@ -39,7 +39,6 @@ def nasty_main(main_args) :
     concat_label = pl.DataFrame(schema=EXTRACT_SCHEMA)
     # snippet slicing serait là, avec main_args.trs_file et main_args.article_file en parametres
     trs_slicing_by_day(main_args)
-'''
     for jt,article in [["06_27_JT.csv","06_27_otmedia.csv"],["06_28_JT.csv","06_28_otmedia.csv"],["06_29_JT.csv","06_29_otmedia.csv"],["06_30_JT.csv","06_30_otmedia.csv"],["07_01_JT.csv","07_01_otmedia.csv"],["07_02_JT.csv","07_02_otmedia.csv"],["07_03_JT.csv","07_03_otmedia.csv"]] :
         # ---- slicing previous meta and emb method cannot be used (order is first by channel, then by time => need to recalculate on DAY files (I manually) created for this ----    
         if os.path.isfile(Path("articles",article)) and os.path.isfile(Path("articles", jt)):
@@ -102,11 +101,21 @@ def nasty_main(main_args) :
 
 
     print(f"duration to encode and extract all articles : {end-start}")
-'''
+    
 def trs_slicing_by_day(main_args) :
-    # problem pour debug global : risque de recalculer touuut l'embedding des transcriptions. à checker avant de débugger l'ensemble de la pipeline.
-    article_sch = {'docTime':pl.Datetime, "media":str, "title":str, 'text':str}
+    # slice transcription and articles for each day, then write them en csv
+    b = time.time()
+    article_sch = {'docTime':str, "media":str, "title":str, 'text':str}
     articles = pl.read_csv(main_args.articles, schema_overrides=article_sch)
+    # timezone resolution : supp "+" and following str, then parse in naive datetime
+    articles = articles.with_columns(
+        pl.col("docTime")
+        .str.replace(r"\+.*$", "")
+        .alias("docTime")
+    ).with_columns(
+        pl.col("docTime")
+        .str.to_datetime()
+    )
     trs = pl.read_csv(main_args.trs, separator=",", quote_char='"', schema_overrides={"":int, "channel": str, "start": pl.Datetime, "end": pl.Datetime, "duration": float, "text": str, "id": str, "created_at": str})
 
     date_debut = main_args.start
@@ -118,19 +127,18 @@ def trs_slicing_by_day(main_args) :
         jours.append(courant.date())
         courant += timedelta(days=1)
 
-    # découpe transcription et articles par jour + les écrit en csv
     for jour in jours :
         mask = pl.col("docTime").dt.date() == jour
         this_day_articles = articles.filter(mask)
-        print(this_day_articles)
-        print(jour.strftime("%Y_%m_%d_otmedia.csv"))
         this_day_articles.write_csv(Path("articles",jour.strftime("%Y_%m_%d_otmedia.csv")))
 
         mask = pl.col("start").dt.date() == jour
         this_day_jts = trs.filter(mask)
-        print(this_day_jts)
-        print(jour.strftime("%Y_%m_%d_JT.csv"))
+        this_day_jts = this_day_jts.with_columns((pl.col("start").dt.to_string("%d/%m/%Y %H:%M:%S")))
+        this_day_jts = this_day_jts.with_columns((pl.col("end").dt.to_string("%d/%m/%Y %H:%M:%S")))
         this_day_jts.write_csv(Path("articles",jour.strftime("%Y_%m_%d_JT.csv")))
+    e = time.time()
+    print("duration of slicing JT and press by day : ",e-b)
 
 if __name__ == "__main__" :
     parser = argparse.ArgumentParser()
